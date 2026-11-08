@@ -14,6 +14,8 @@ export const DEFAULT_SETTINGS = {
   streamSeconds: 1.5,
   streamReveal: 'together', // together: слово и перевод сразу; after: перевод через полсекунды
   streamSpeak: true,
+  streamAudio: false, // аудиорежим потока: перевод вслух, работает в свёрнутой вкладке
+  streamRepeat: false,
   flashMs: 40,
   flashGap: 2,
   flashWithTranslation: true,

@@ -5,6 +5,8 @@
 const VOICES = {
   en: { preferred: ['en-gb', 'en-us'], prefix: 'en', fallback: 'en-GB' },
   pt: { preferred: ['pt-pt', 'pt-br'], prefix: 'pt', fallback: 'pt-PT' },
+  // Русский — для перевода в аудиопотоке.
+  ru: { preferred: ['ru-ru'], prefix: 'ru', fallback: 'ru-RU' },
 };
 
 // Если фраза не начала звучать за это время, синтезатор считается зависшим.
@@ -44,7 +46,7 @@ function pickVoice() {
 }
 
 export function setSpeechLang(code) {
-  lang = VOICES[code] ? code : 'en';
+  lang = VOICES[code] && code !== 'ru' ? code : 'en';
   if (!speechSupported()) return;
   voice = pickVoice();
   onVoiceChange?.(Boolean(voice) || !speechSynthesis.getVoices().length);
@@ -114,6 +116,52 @@ function say(text, element, retry) {
   }, voice && !voice.localService ? START_TIMEOUT_NETWORK : START_TIMEOUT_LOCAL);
 
   speechSynthesis.speak(utterance);
+}
+
+// Фразы аудиопотока, которые ещё звучат или ждут очереди: ссылка не даёт сборщику мусора
+// удалить utterance (иначе Chrome не присылает end).
+const queued = new Set();
+
+// Произнести фразу и дождаться её конца. Для аудиопотока, который работает в свёрнутой вкладке:
+// там Chrome замедляет таймеры (через 5 минут — до раза в минуту), поэтому следующая фраза
+// запускается по событию end синтезатора, а не по таймеру. cancel() не вызывается — фразы
+// идут друг за другом. Promise всегда завершается: true — фраза прозвучала.
+// language: 'en' | 'pt' | 'ru'.
+export function speakAndWait(text, language = lang) {
+  return new Promise((resolve) => {
+    if (!speechSupported() || !text) {
+      resolve(false);
+      return;
+    }
+    const conf = VOICES[language] ?? VOICES[lang];
+    const chosen = language === lang ? (voice ??= pickVoice()) : chooseVoice(speechSynthesis.getVoices(), conf.preferred, conf.prefix);
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = chosen?.lang ?? conf.fallback;
+    if (chosen) utterance.voice = chosen;
+    utterance.rate = 0.9;
+
+    let done = false;
+    let guard = null;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      clearTimeout(guard);
+      queued.delete(utterance);
+      resolve(ok);
+    };
+    queued.add(utterance);
+    utterance.addEventListener('end', () => finish(true));
+    utterance.addEventListener('error', () => finish(false));
+    // Страховка от зависшего сетевого голоса: сбросить синтезатор и идти дальше
+    // (после паузы — иначе следующая фраза потеряется, см. CANCEL_GAP).
+    guard = setTimeout(() => {
+      speechSynthesis.cancel();
+      setTimeout(() => finish(false), CANCEL_GAP);
+    }, 8000 + text.length * 150);
+
+    speechSynthesis.resume();
+    speechSynthesis.speak(utterance);
+  });
 }
 
 // onVoice(found) вызывается, когда становится известно, есть ли в системе голос языка.

@@ -28,7 +28,12 @@ const session = createSession($('session-view'), {
     showView('today');
   },
 });
-const stream = createStream($('stream-view'), { wordsFor, settings: () => state.settings, saveSettings: updateSettings });
+const stream = createStream($('stream-view'), {
+  wordsFor,
+  lang: () => state.lang,
+  settings: () => state.settings,
+  saveSettings: updateSettings,
+});
 const flash = createFlash($('flash-view'), { wordsFor, settings: () => state.settings, saveSettings: updateSettings });
 
 // --- Разделы -----------------------------------------------------------------

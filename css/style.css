@@ -34,6 +34,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -203,6 +204,8 @@ kbd { font: inherit; font-size: .8em; opacity: .7; margin-left: 6px; }
 }
 .notice p { margin: 0 0 6px; }
 .notice.warning { background: var(--warning-bg); }
+.notice .checkbox { display: flex; align-items: center; gap: 6px; }
+.audio-notice .hint { margin: 6px 0 8px; }
 
 .speak { cursor: pointer; }
 .speak:hover { text-decoration: underline dotted; text-underline-offset: 4px; }

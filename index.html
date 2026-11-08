@@ -110,6 +110,13 @@
         </label>
         <label class="checkbox"><input type="checkbox" id="stream-speak"> Произносить</label>
       </div>
+      <div class="notice audio-notice">
+        <label class="checkbox"><input type="checkbox" id="stream-audio"> <b>Аудио: перевод вслух, работает в фоне</b></label>
+        <p class="hint">Слово произносится, за ним — русский перевод, и сразу следующее слово. Можно свернуть
+          вкладку или работать в другой программе — поток будет звучать, как аудиоурок в наушниках.
+          На телефоне браузер может остановить звук при блокировке экрана.</p>
+        <label class="checkbox"><input type="checkbox" id="stream-repeat"> Повторять слово после перевода</label>
+      </div>
       <div class="stage" id="stream-stage" aria-live="off">
         <div class="stage-word" id="stream-word"></div>
         <div class="stage-translation" id="stream-translation"></div>

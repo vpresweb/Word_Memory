@@ -1,7 +1,13 @@
 // Быстрый поток: слова одно за другим с переводом и произношением.
 // Пассивный режим — на интервалы повторения не влияет.
+//
+// Два режима:
+// - обычный: слово на экране N секунд, смена по таймеру;
+// - аудио: слово произносится, затем русский перевод, затем следующее слово. Смена идёт по
+//   событию «фраза дозвучала», а не по таймеру, поэтому поток продолжает звучать, когда вкладка
+//   свёрнута или открыта другая программа (таймеры свёрнутых вкладок Chrome замедляет).
 import { escapeHtml } from './data.js';
-import { speak, stopSpeech } from './speech.js';
+import { speak, speakAndWait, stopSpeech } from './speech.js';
 
 export function shuffle(list) {
   const a = [...list];
@@ -12,19 +18,27 @@ export function shuffle(list) {
   return a;
 }
 
-// ctx: { wordsFor(kind) → entries, settings(), saveSettings() }
+// Перевод для чтения вслух: первые два значения.
+export const spokenTranslation = (entry) => entry.translations.slice(0, 2).join(', ');
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ctx: { wordsFor(kind) → entries, lang() → 'en' | 'pt', settings(), saveSettings() }
 export function createStream(root, ctx) {
   const $ = (id) => root.querySelector(`#${id}`);
   const source = $('stream-source');
   const speed = $('stream-speed');
   const revealMode = $('stream-reveal');
   const speakBox = $('stream-speak');
+  const audioBox = $('stream-audio');
+  const repeatBox = $('stream-repeat');
   const word = $('stream-word');
   const translation = $('stream-translation');
   const toggle = $('stream-toggle');
   const counter = $('stream-count');
 
   let running = false;
+  let run = 0; // номер запуска: старый цикл аудио видит, что его остановили
   let list = [];
   let index = 0;
   let shown = 0;
@@ -40,28 +54,75 @@ export function createStream(root, ctx) {
     speed.value = String(s.streamSeconds);
     revealMode.value = s.streamReveal;
     speakBox.checked = s.streamSpeak;
+    audioBox.checked = s.streamAudio;
+    repeatBox.checked = s.streamRepeat;
+    updateControls();
   }
 
-  function step() {
-    if (!running) return;
+  // В аудиорежиме темп задаёт сама речь, а слово всегда произносится.
+  function updateControls() {
+    const audio = audioBox.checked;
+    speed.disabled = audio;
+    speakBox.disabled = audio;
+    repeatBox.disabled = !audio;
+    repeatBox.closest('label').hidden = !audio;
+  }
+
+  function nextEntry() {
     if (index >= list.length) {
       list = shuffle(list);
       index = 0;
     }
-    const entry = list[index++];
-    const ms = Number(speed.value) * 1000;
+    return list[index++];
+  }
+
+  function showWord(entry, withTranslation) {
     word.innerHTML = `<span class="speak">${escapeHtml(entry.word)}</span>`;
-    const text = escapeHtml(entry.translations.join(', '));
-    if (revealMode.value === 'after') {
-      translation.textContent = '';
-      timers.push(setTimeout(() => { translation.innerHTML = text; }, Math.min(500, ms / 2)));
-    } else {
-      translation.innerHTML = text;
-    }
-    if (speakBox.checked) speak(entry.word, word.firstElementChild);
+    translation.innerHTML = withTranslation ? escapeHtml(entry.translations.join(', ')) : '';
+  }
+
+  function count() {
     shown += 1;
     counter.textContent = `Показано слов: ${shown} · в наборе: ${list.length}`;
+  }
+
+  // Обычный режим: смена по таймеру.
+  function step() {
+    if (!running) return;
+    const entry = nextEntry();
+    const ms = Number(speed.value) * 1000;
+    const after = revealMode.value === 'after';
+    showWord(entry, !after);
+    if (after) {
+      timers.push(setTimeout(() => { translation.innerHTML = escapeHtml(entry.translations.join(', ')); }, Math.min(500, ms / 2)));
+    }
+    if (speakBox.checked) speak(entry.word, word.firstElementChild);
+    count();
     timers.push(setTimeout(step, ms));
+  }
+
+  // Аудиорежим: слово → перевод по-русски → (слово ещё раз) → следующее.
+  async function audioLoop(id) {
+    const alive = () => running && run === id;
+    const lang = ctx.lang();
+    while (alive()) {
+      const entry = nextEntry();
+      const after = revealMode.value === 'after';
+      showWord(entry, !after);
+      await speakAndWait(entry.word, lang);
+      if (!alive()) return;
+      if (after) translation.innerHTML = escapeHtml(entry.translations.join(', '));
+      await speakAndWait(spokenTranslation(entry), 'ru');
+      if (!alive()) return;
+      if (repeatBox.checked) {
+        await speakAndWait(entry.word, lang);
+        if (!alive()) return;
+      }
+      count();
+      // Короткая пауза между словами — только когда вкладка видна: в свёрнутой вкладке
+      // таймер мог бы растянуться до минуты, а паузы между фразами и так есть.
+      if (!document.hidden) await wait(400);
+    }
   }
 
   function start() {
@@ -71,32 +132,65 @@ export function createStream(root, ctx) {
       return;
     }
     running = true;
+    run += 1;
     index = 0;
     shown = 0;
     toggle.textContent = 'Пауза';
-    step();
+    if (audioBox.checked) {
+      // Остановить то, что звучало раньше, и начать с паузой (иначе Chrome потеряет первую фразу).
+      stopSpeech();
+      const id = run;
+      timers.push(setTimeout(() => audioLoop(id), 150));
+    } else {
+      step();
+    }
   }
 
   function stop() {
     running = false;
+    run += 1;
     clearTimers();
     stopSpeech();
     toggle.textContent = 'Запустить';
   }
 
-  toggle.addEventListener('click', () => (running ? stop() : start()));
-  source.addEventListener('change', () => {
+  const restart = () => {
     if (running) {
       stop();
       start();
     }
-  });
+  };
+
+  toggle.addEventListener('click', () => (running ? stop() : start()));
+  source.addEventListener('change', restart);
   const persist = () => {
-    ctx.saveSettings({ streamSeconds: Number(speed.value), streamReveal: revealMode.value, streamSpeak: speakBox.checked });
+    ctx.saveSettings({
+      streamSeconds: Number(speed.value),
+      streamReveal: revealMode.value,
+      streamSpeak: speakBox.checked,
+      streamAudio: audioBox.checked,
+      streamRepeat: repeatBox.checked,
+    });
   };
   speed.addEventListener('change', persist);
   revealMode.addEventListener('change', persist);
   speakBox.addEventListener('change', persist);
+  repeatBox.addEventListener('change', persist);
+  audioBox.addEventListener('change', () => {
+    persist();
+    updateControls();
+    restart();
+  });
 
-  return { stop, syncControls, reset: () => { stop(); word.textContent = ''; translation.textContent = ''; counter.textContent = ''; } };
+  return {
+    stop,
+    syncControls,
+    isRunning: () => running,
+    reset: () => {
+      stop();
+      word.textContent = '';
+      translation.textContent = '';
+      counter.textContent = '';
+    },
+  };
 }
