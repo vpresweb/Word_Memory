@@ -1,5 +1,5 @@
-// Озвучивание через Web Speech API браузера. Взято из словарей Dictionary_English и
-// Dicionario_Portugues (с их обходами сбоев Chrome) и обобщено на два языка.
+// Озвучивание через Web Speech API браузера — общее для словаря, теста и запоминания слов.
+// Язык (английский или португальский) задаёт setSpeechLang(); русский — для перевода в аудиопотоке.
 // Любой элемент с классом .speak озвучивается по нажатию.
 
 const VOICES = {
@@ -152,16 +152,37 @@ export function speakAndWait(text, language = lang) {
     queued.add(utterance);
     utterance.addEventListener('end', () => finish(true));
     utterance.addEventListener('error', () => finish(false));
-    // Страховка от зависшего сетевого голоса: сбросить синтезатор и идти дальше
-    // (после паузы — иначе следующая фраза потеряется, см. CANCEL_GAP).
-    guard = setTimeout(() => {
+    // Фраза не началась (телефон не разрешил озвучку, сетевой голос завис) — сбросить
+    // синтезатор и идти дальше (после паузы, иначе следующая фраза потеряется, см. CANCEL_GAP).
+    const stall = () => {
       speechSynthesis.cancel();
       setTimeout(() => finish(false), CANCEL_GAP);
-    }, 8000 + text.length * 150);
+    };
+    guard = setTimeout(stall, chosen && !chosen.localService ? START_TIMEOUT_NETWORK : START_TIMEOUT_LOCAL + 500);
+    // Началась — ждём end, но не дольше расчётной длительности (~12 знаков в секунду):
+    // на Android Chrome end иногда не приходит. Синтезатор не сбрасываем — если фраза
+    // ещё звучит, следующая просто встанет за ней в очередь.
+    utterance.addEventListener('start', () => {
+      clearTimeout(guard);
+      guard = setTimeout(() => finish(true), 700 + text.length * 80);
+    });
 
     speechSynthesis.resume();
     speechSynthesis.speak(utterance);
   });
+}
+
+// Разрешить озвучку: мобильные браузеры пускают речь, только если первая фраза произнесена
+// прямо в обработчике нажатия. Вызывать синхронно из обработчика клика.
+export function unlockSpeech() {
+  if (!speechSupported()) return;
+  const utterance = new SpeechSynthesisUtterance(' ');
+  utterance.volume = 0;
+  queued.add(utterance);
+  const release = () => queued.delete(utterance);
+  utterance.addEventListener('end', release);
+  utterance.addEventListener('error', release);
+  speechSynthesis.speak(utterance);
 }
 
 // onVoice(found) вызывается, когда становится известно, есть ли в системе голос языка.
@@ -192,13 +213,15 @@ export function initSpeech(onVoice) {
   document.addEventListener('pointerdown', (event) => {
     if (!event.target.closest?.('.speak, button')) warmUp();
   });
+  // Варианты формы (learnt / learned) читаются через запятую.
+  const textOf = (element) => (element.dataset.speak ?? element.textContent.trim()).replace(/\s*\/\s*/g, ', ');
   document.addEventListener('click', (event) => {
     const element = event.target.closest?.('.speak');
-    if (element) speak(element.dataset.speak ?? element.textContent.trim(), element);
+    if (element) speak(textOf(element), element);
   });
   document.addEventListener('keydown', (event) => {
     const element = event.key === 'Enter' && event.target.closest?.('.speak[tabindex]');
-    if (element) speak(element.dataset.speak ?? element.textContent.trim(), element);
+    if (element) speak(textOf(element), element);
     else warmUp();
   });
 }

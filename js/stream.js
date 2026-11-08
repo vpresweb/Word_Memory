@@ -7,7 +7,7 @@
 //   событию «фраза дозвучала», а не по таймеру, поэтому поток продолжает звучать, когда вкладка
 //   свёрнута или открыта другая программа (таймеры свёрнутых вкладок Chrome замедляет).
 import { escapeHtml } from './data.js';
-import { speak, speakAndWait, stopSpeech } from './speech.js';
+import { speak, speakAndWait, stopSpeech, unlockSpeech, speechSupported } from './speech.js';
 
 export function shuffle(list) {
   const a = [...list];
@@ -105,23 +105,39 @@ export function createStream(root, ctx) {
   async function audioLoop(id) {
     const alive = () => running && run === id;
     const lang = ctx.lang();
+    let silent = 0; // сколько слов подряд не удалось озвучить
     while (alive()) {
       const entry = nextEntry();
       const after = revealMode.value === 'after';
       showWord(entry, !after);
-      await speakAndWait(entry.word, lang);
+      if (silent >= 2) {
+        // Два слова подряд не озвучились — дальше без звука, чтобы поток не тормозил.
+        if (after) timers.push(setTimeout(() => { translation.innerHTML = escapeHtml(entry.translations.join(', ')); }, 700));
+        count();
+        counter.textContent += ' · озвучка не отвечает: нажмите «Пауза» и снова «Запустить»';
+        await wait(2000);
+        continue;
+      }
+      const wordOk = await speakAndWait(entry.word, lang);
       if (!alive()) return;
       if (after) translation.innerHTML = escapeHtml(entry.translations.join(', '));
-      await speakAndWait(spokenTranslation(entry), 'ru');
+      const translationOk = await speakAndWait(spokenTranslation(entry), 'ru');
       if (!alive()) return;
       if (repeatBox.checked) {
         await speakAndWait(entry.word, lang);
         if (!alive()) return;
       }
       count();
-      // Короткая пауза между словами — только когда вкладка видна: в свёрнутой вкладке
-      // таймер мог бы растянуться до минуты, а паузы между фразами и так есть.
-      if (!document.hidden) await wait(400);
+      silent = wordOk || translationOk ? 0 : silent + 1;
+      if (silent) {
+        // Озвучка не работает — поток всё равно идёт, но с паузой, чтобы слово успели прочитать.
+        counter.textContent += ' · озвучка не отвечает';
+        await wait(1500);
+      } else if (!document.hidden) {
+        // Короткая пауза между словами — только когда вкладка видна: в свёрнутой вкладке
+        // таймер мог бы растянуться до минуты, а паузы между фразами и так есть.
+        await wait(400);
+      }
     }
   }
 
@@ -137,10 +153,17 @@ export function createStream(root, ctx) {
     shown = 0;
     toggle.textContent = 'Пауза';
     if (audioBox.checked) {
-      // Остановить то, что звучало раньше, и начать с паузой (иначе Chrome потеряет первую фразу).
-      stopSpeech();
       const id = run;
-      timers.push(setTimeout(() => audioLoop(id), 150));
+      if (speechSupported() && (speechSynthesis.speaking || speechSynthesis.pending)) {
+        // Остановить то, что звучало, и начать с паузой (иначе Chrome потеряет первую фразу).
+        stopSpeech();
+        unlockSpeech();
+        timers.push(setTimeout(() => audioLoop(id), 150));
+      } else {
+        // Первая фраза — прямо в обработчике нажатия: иначе телефон не разрешит озвучку.
+        unlockSpeech();
+        audioLoop(id);
+      }
     } else {
       step();
     }
