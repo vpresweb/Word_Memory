@@ -37,14 +37,15 @@
       <div class="stats" id="stats"></div>
       <button type="button" class="primary" id="start">Начать занятие</button>
       <p class="hint" id="start-hint"></p>
+      <p class="hint" id="levels-line"></p>
       <h2 class="section-title">Повторения на неделю</h2>
       <ol class="forecast" id="forecast"></ol>
       <details class="method">
         <summary>Как это работает</summary>
         <ol>
           <li><b>Знакомство.</b> Новые слова идут быстрым потоком: слово, перевод и произношение — 2–3 секунды на слово, два круга.</li>
-          <li><b>Вспоминание.</b> Карточка показывает слово, вы вспоминаете перевод и только потом открываете ответ. Усилие вспомнить — то, что закрепляет слово.</li>
-          <li><b>Интервалы.</b> Оценка ответа решает, когда слово вернётся: через минуты, день, неделю, месяц. Каждый удачный ответ отодвигает повтор дальше — так слово переходит в долгую память.</li>
+          <li><b>Три уровня проверки.</b> 1 — <i>узнавание</i>: видите слово, выбираете перевод из четырёх. 2 — <i>обратный выбор</i>: видите перевод, выбираете слово из четырёх. 3 — <i>вспоминание</i>: видите перевод, вспоминаете слово сами, открываете ответ и отмечаете «Вспомнил» или «Не вспомнил». 3 верных ответа подряд — следующий уровень. Ошибка обнуляет серию, ошибка на 3-м уровне возвращает на 2-й.</li>
+          <li><b>Интервалы.</b> Ответ решает, когда слово вернётся: верно — позже (10 минут, день, несколько дней, недели), неверно — через минуту. Ответ дольше 8 секунд считается неуверенным, и слово вернётся раньше. Через 3 недели без ошибок слово запомнено надолго.</li>
         </ol>
         <p>Достаточно 10–15 минут в день, но каждый день: пропущенные повторения копятся.</p>
       </details>
@@ -68,6 +69,7 @@
       </div>
 
       <div id="review" hidden>
+        <p class="level-line" id="level-line"></p>
         <div class="card" id="card" aria-live="polite">
           <div class="card-front" id="card-front"></div>
           <div class="card-back" id="card-back" hidden></div>
@@ -79,7 +81,14 @@
           <button type="button" data-grade="3" class="good">Хорошо<small></small></button>
           <button type="button" data-grade="4" class="easy">Легко<small></small></button>
         </div>
-        <p class="hint keys-hint">Клавиши: пробел — ответ, 1–4 — оценка</p>
+        <div class="choices" id="choices" hidden></div>
+        <div class="recall" id="recall" hidden>
+          <button type="button" data-recall="0" class="again">Не вспомнил</button>
+          <button type="button" data-recall="1" class="good">Вспомнил</button>
+        </div>
+        <p class="answer-note" id="answer-note" aria-live="polite"></p>
+        <button type="button" class="primary" id="next-card" hidden>Дальше →</button>
+        <p class="hint keys-hint" id="keys-hint">Клавиши: пробел — ответ, 1–4 — оценка</p>
       </div>
 
       <div id="session-done" class="done" hidden></div>
@@ -185,7 +194,13 @@
             <option value="30">30</option>
           </select>
         </label>
-        <label>Направление карточек
+        <label>Проверка слов
+          <select id="set-check">
+            <option value="choice">Выбор из 4 вариантов, 3 уровня</option>
+            <option value="self">Самооценка: Снова / Трудно / Хорошо / Легко</option>
+          </select>
+        </label>
+        <label id="direction-label">Направление карточек
           <select id="set-direction">
             <option value="forward">Слово → перевод</option>
             <option value="reverse">Перевод → слово</option>

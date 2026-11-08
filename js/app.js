@@ -6,6 +6,7 @@ import { initSpeech, setSpeechLang, stopSpeech } from './speech.js';
 import { createSession, nextDueText } from './learn.js';
 import { createStream } from './stream.js';
 import { createFlash } from './flash.js';
+import { LEVELS, levelOf } from './levels.js';
 
 const $ = (id) => document.getElementById(id);
 const VIEWS = ['today', 'session', 'stream', 'flash', 'settings'];
@@ -27,6 +28,10 @@ const session = createSession($('session-view'), {
     location.hash = '';
     showView('today');
   },
+  // Незаконченное занятие здесь не сохраняется (это умеет приложение «Языки»).
+  loadState: () => null,
+  saveState: () => {},
+  clearState: () => {},
 });
 const stream = createStream($('stream-view'), {
   wordsFor,
@@ -85,6 +90,13 @@ function renderToday() {
     stat(s.streak, 'дней подряд'),
     stat(`${s.started} / ${s.total}`, 'начато слов'),
   ].join('');
+  // Сколько начатых слов на каждом уровне проверки.
+  const byLevel = { 1: 0, 2: 0, 3: 0 };
+  const ids = new Set(state.words.map((e) => `${e.word}|${e.pos}`));
+  for (const [id, card] of Object.entries(state.progress.cards)) if (ids.has(id)) byLevel[levelOf(card)] += 1;
+  $('levels-line').textContent = state.settings.check === 'self' || !s.started
+    ? ''
+    : `По уровням: ${Object.entries(LEVELS).map(([n, l]) => `${n}. ${l.name.toLowerCase()} — ${byLevel[n]}`).join(' · ')}`;
 
   const start = $('start');
   const work = s.due + fresh;
@@ -109,6 +121,8 @@ $('start').addEventListener('click', () => {
 
 function renderSettings() {
   $('set-new').value = String(state.settings.newPerDay);
+  $('set-check').value = state.settings.check;
+  $('direction-label').hidden = state.settings.check !== 'self';
   $('set-direction').value = state.settings.direction;
   $('set-intro').value = String(state.settings.introSeconds);
   $('set-autospeak').checked = state.settings.autospeak;
@@ -116,6 +130,10 @@ function renderSettings() {
 }
 
 $('set-new').addEventListener('change', (e) => updateSettings({ newPerDay: Number(e.target.value) }));
+$('set-check').addEventListener('change', (e) => {
+  updateSettings({ check: e.target.value });
+  $('direction-label').hidden = e.target.value !== 'self';
+});
 $('set-direction').addEventListener('change', (e) => updateSettings({ direction: e.target.value }));
 $('set-intro').addEventListener('change', (e) => updateSettings({ introSeconds: Number(e.target.value) }));
 $('set-autospeak').addEventListener('change', (e) => updateSettings({ autospeak: e.target.checked }));

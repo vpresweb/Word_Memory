@@ -62,6 +62,56 @@ export function pickNext(queue, waiting, now) {
   return null;
 }
 
+// Незаконченное занятие — для сохранения: только ключи слов, сами слова берутся из словаря.
+// Показанная, но не оценённая карточка возвращается в начало очереди.
+export function packSession({ queue, waiting, fresh, introDone, reviewed, current }, now) {
+  return {
+    day: dayKey(now),
+    queue: [...(current ? [current] : []), ...queue].map(wordId),
+    waiting: waiting.map((w) => ({ id: wordId(w.entry), due: w.due })),
+    fresh: [...fresh],
+    introDone: Boolean(introDone),
+    reviewed: reviewed || 0,
+  };
+}
+
+// Восстановить занятие. null — восстанавливать нечего: занятие вчерашнее, пустое или испорчено.
+// Прогресс мог измениться на другом устройстве: уже повторённые там слова пропускаются,
+// а сроки слов изучения берутся из прогресса.
+export function unpackSession(saved, words, progress, now) {
+  if (!saved || saved.day !== dayKey(now) || !Array.isArray(saved.queue) || !Array.isArray(saved.waiting)) return null;
+  const byId = new Map(words.map((e) => [wordId(e), e]));
+  const fresh = new Set(Array.isArray(saved.fresh) ? saved.fresh : []);
+  const until = endOfDay(now);
+  const queue = [];
+  const seen = new Set();
+  for (const id of saved.queue) {
+    const entry = byId.get(id);
+    if (!entry || seen.has(id)) continue;
+    const card = progress.cards[id];
+    if (fresh.has(id) ? Boolean(card) : !card || card.due > until) continue;
+    seen.add(id);
+    queue.push(entry);
+  }
+  const waiting = [];
+  for (const w of saved.waiting) {
+    const entry = byId.get(w?.id);
+    const card = progress.cards[w?.id];
+    if (!entry || seen.has(w.id) || !card || !isLearning(card) || card.due > until) continue;
+    seen.add(w.id);
+    waiting.push({ entry, due: card.due });
+  }
+  if (!queue.length && !waiting.length) return null;
+  const freshLeft = queue.map(wordId).filter((id) => fresh.has(id));
+  return {
+    queue,
+    waiting,
+    fresh: freshLeft,
+    introDone: Boolean(saved.introDone) || !freshLeft.length,
+    reviewed: Number(saved.reviewed) || 0,
+  };
+}
+
 // Серия дней подряд с занятиями, заканчивающаяся сегодня или вчера.
 export function streak(days, now) {
   const set = new Set(days);
