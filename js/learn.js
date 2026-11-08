@@ -232,7 +232,9 @@ export function createSession(root, ctx) {
     if (!current || answered || level >= 3 || !options[index]) return;
     const correct = wordId(options[index]) === wordId(current);
     choices.querySelectorAll('[data-choice]').forEach((button, j) => {
-      button.disabled = true;
+      // Не disabled: нажатие на вариант после ответа ведёт дальше, а на выключенной кнопке
+      // браузер нажатие не передаёт.
+      button.setAttribute('aria-disabled', 'true');
       if (wordId(options[j]) === wordId(current)) button.classList.add('right');
       else if (j === index) button.classList.add('wrong');
     });
@@ -271,7 +273,7 @@ export function createSession(root, ctx) {
     levelNote.textContent = levelRule(result.level, result.streak);
     recall.hidden = true;
     let text = correct ? '✓ Верно' : '✗ Неверно';
-    if (!correct && level < 3) text += ' — правильный ответ выделен';
+    if (!correct && level < 3) text += ' — правильный выделен';
     if (result.promoted) text += ` · Новый уровень: ${LEVELS[result.level].name.toLowerCase()}!`;
     if (result.demoted) text += ` · Слово вернулось на уровень ${result.level}`;
     note.textContent = text;
@@ -281,8 +283,12 @@ export function createSession(root, ctx) {
       return;
     }
     nextButton.hidden = false;
-    // Верный ответ — дальше само через секунду; неверный — дать рассмотреть.
-    if (correct) advanceTimer = setTimeout(() => { if (active && answered) next(); }, result.promoted ? 2000 : 1100);
+    // На телефоне кнопка может оказаться ниже края экрана — прокрутить к ней.
+    nextButton.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    // Дальше само: после верного ответа через секунду, после ошибки — через 3 секунды,
+    // чтобы успеть рассмотреть правильный ответ. Раньше — «Дальше» или нажатие на карточку.
+    const delay = !correct ? 3000 : result.promoted ? 2000 : 1100;
+    advanceTimer = setTimeout(() => { if (active && answered) next(); }, delay);
   }
 
   function reveal() {
@@ -398,6 +404,10 @@ export function createSession(root, ctx) {
     if (button) grade(Number(button.dataset.grade));
   });
   choices.addEventListener('click', (event) => {
+    if (answered && choiceMode()) {
+      next();
+      return;
+    }
     const button = event.target.closest('[data-choice]');
     if (button) choose(Number(button.dataset.choice));
   });
@@ -410,7 +420,9 @@ export function createSession(root, ctx) {
   });
   // Нажатие на карточку тоже открывает ответ (но не на слово — оно озвучивается).
   $('card').addEventListener('click', (event) => {
-    if (!event.target.closest('.speak')) reveal();
+    if (event.target.closest('.speak')) return;
+    if (answered && choiceMode()) next();
+    else reveal();
   });
   introPause.addEventListener('click', toggleIntroPause);
   $('intro-skip').addEventListener('click', endIntro);
