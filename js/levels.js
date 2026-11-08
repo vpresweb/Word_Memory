@@ -44,6 +44,18 @@ export function applyAnswer(card, correct) {
   return { level, streak: Math.min(streak, PROMOTE_AFTER), promoted: false, demoted: false };
 }
 
+// Примечание на карточке: как слово перейдёт на следующий уровень.
+export function levelRule(level, streak) {
+  if (level >= MAX_LEVEL) {
+    return `Последний уровень. «Не вспомнил» вернёт слово на уровень ${MAX_LEVEL - 1}. `
+      + 'Слово запомнено надолго, когда без ошибок дойдёт до повтора через 3 недели.';
+  }
+  const left = Math.max(1, PROMOTE_AFTER - streak);
+  const answers = left === 1 ? 'верный ответ' : 'верных ответа';
+  return `Ещё ${left} ${answers} подряд — переход на уровень ${level + 1} (${LEVELS[level + 1].name.toLowerCase()}). `
+    + 'Ошибка обнулит серию.';
+}
+
 // Оценка для алгоритма интервалов.
 export function gradeFor(correct, ms) {
   if (!correct) return AGAIN;

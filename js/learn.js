@@ -2,7 +2,7 @@
 // и карточки. Проверка — выбором из 4 вариантов по уровням (levels.js) или, по настройке,
 // самооценкой «вспомни → проверь → оцени». Ответ решает, когда слово вернётся.
 import { newCard, review, previewIntervals, formatInterval, isLearning, GRADES } from './srs.js';
-import { LEVELS, MAX_LEVEL, PROMOTE_AFTER, levelOf, streakOf, applyAnswer, gradeFor, pickOptions } from './levels.js';
+import { LEVELS, MAX_LEVEL, PROMOTE_AFTER, levelOf, streakOf, applyAnswer, gradeFor, pickOptions, levelRule } from './levels.js';
 import { wordId, dueWords, freshWords, pickNext, dayKey, endOfDay, markDay, packSession, unpackSession } from './session.js';
 import { entryMeta, escapeHtml } from './data.js';
 import { speak, stopSpeech } from './speech.js';
@@ -45,6 +45,7 @@ export function createSession(root, ctx) {
   const grades = $('grades');
   const done = $('session-done');
   const levelLine = $('level-line');
+  const levelNote = $('level-rule');
   const choices = $('choices');
   const recall = $('recall');
   const note = $('answer-note');
@@ -183,6 +184,7 @@ export function createSession(root, ctx) {
     if (!choiceMode()) {
       reverse = settings.direction === 'reverse' || (settings.direction === 'mixed' && Math.random() < 0.5);
       levelLine.textContent = '';
+      levelNote.textContent = '';
       front.innerHTML = reverse ? `${translation}${meta}` : `${wordHtml(current)}${meta}`;
       back.innerHTML = `${reverse ? wordHtml(current) : translation}${exampleHtml(current)}`;
       revealButton.hidden = false;
@@ -198,6 +200,7 @@ export function createSession(root, ctx) {
     level = levelOf(card);
     reverse = level > 1;
     levelLine.innerHTML = `${levelHtml(level, streakOf(card))} <span class="task">— ${LEVELS[level].task}</span>`;
+    levelNote.textContent = levelRule(level, streakOf(card));
     if (level === 1) {
       front.innerHTML = `${wordHtml(current)}${meta}`;
       back.innerHTML = exampleHtml(current);
@@ -265,6 +268,7 @@ export function createSession(root, ctx) {
     current = entry;
 
     levelLine.innerHTML = levelHtml(result.level, result.streak);
+    levelNote.textContent = levelRule(result.level, result.streak);
     recall.hidden = true;
     let text = correct ? '✓ Верно' : '✗ Неверно';
     if (!correct && level < 3) text += ' — правильный ответ выделен';

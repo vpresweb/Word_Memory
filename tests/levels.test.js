@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { levelOf, streakOf, applyAnswer, gradeFor, pickOptions, PROMOTE_AFTER, SLOW_MS } from '../js/levels.js';
+import { levelOf, streakOf, applyAnswer, gradeFor, pickOptions, levelRule, PROMOTE_AFTER, SLOW_MS } from '../js/levels.js';
 import { AGAIN, HARD, GOOD } from '../js/srs.js';
 
 const e = (word, pos, ...translations) => ({ word, pos, translations });
@@ -32,6 +32,12 @@ test('ошибка обнуляет серию; на 3-м уровне — во�
   assert.equal(top.level, 3);
   assert.equal(top.promoted, false);
   assert.ok(top.streak <= PROMOTE_AFTER);
+});
+
+test('примечание: сколько верных ответов до следующего уровня', () => {
+  assert.equal(levelRule(1, 0), 'Ещё 3 верных ответа подряд — переход на уровень 2 (обратный выбор). Ошибка обнулит серию.');
+  assert.match(levelRule(2, 2), /^Ещё 1 верный ответ подряд — переход на уровень 3 \(вспоминание\)/);
+  assert.match(levelRule(3, 0), /^Последний уровень\. «Не вспомнил» вернёт слово на уровень 2/);
 });
 
 test('оценка для интервалов: неверно — «Снова», долго — «Трудно», иначе — «Хорошо»', () => {
