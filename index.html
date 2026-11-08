@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Запоминание слов</title>
+  <meta name="description" content="Быстрое и долгое запоминание английских и португальских слов: интервальное повторение, быстрый поток слов и экспериментальный режим «25-й кадр»">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f4f99'/%3E%3Cpath d='M9 9h14M9 16h10M9 23h6' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-row">
+      <h1>Запоминание слов</h1>
+      <div class="lang-switch" role="radiogroup" aria-label="Язык">
+        <button type="button" role="radio" data-lang="en" aria-checked="true">English</button>
+        <button type="button" role="radio" data-lang="pt" aria-checked="false">Português</button>
+      </div>
+    </div>
+    <p class="subtitle">Интервальное повторение и быстрый поток слов · слова из словарей
+      <a href="https://vpresweb.github.io/Dictionary_English/">Dictionary English</a> и
+      <a href="https://vpresweb.github.io/Dicionario_Portugues/">Dicionário Português</a></p>
+    <nav class="tabs" aria-label="Разделы">
+      <a href="#" data-view="today">Сегодня</a>
+      <a href="#stream" data-view="stream">Поток</a>
+      <a href="#flash" data-view="flash">25-й кадр</a>
+      <a href="#settings" data-view="settings">Настройки</a>
+    </nav>
+  </header>
+
+  <main>
+    <p class="status" id="status" aria-live="polite">Загрузка слов…</p>
+
+    <!-- Сегодня -->
+    <section id="today-view" hidden>
+      <div class="stats" id="stats"></div>
+      <button type="button" class="primary" id="start">Начать занятие</button>
+      <p class="hint" id="start-hint"></p>
+      <h2 class="section-title">Повторения на неделю</h2>
+      <ol class="forecast" id="forecast"></ol>
+      <details class="method">
+        <summary>Как это работает</summary>
+        <ol>
+          <li><b>Знакомство.</b> Новые слова идут быстрым потоком: слово, перевод и произношение — 2–3 секунды на слово, два круга.</li>
+          <li><b>Вспоминание.</b> Карточка показывает слово, вы вспоминаете перевод и только потом открываете ответ. Усилие вспомнить — то, что закрепляет слово.</li>
+          <li><b>Интервалы.</b> Оценка ответа решает, когда слово вернётся: через минуты, день, неделю, месяц. Каждый удачный ответ отодвигает повтор дальше — так слово переходит в долгую память.</li>
+        </ol>
+        <p>Достаточно 10–15 минут в день, но каждый день: пропущенные повторения копятся.</p>
+      </details>
+    </section>
+
+    <!-- Занятие -->
+    <section id="session-view" hidden>
+      <div class="session-bar">
+        <span id="session-left"></span>
+        <button type="button" class="link-button" id="session-exit">Завершить</button>
+      </div>
+
+      <div id="intro" class="intro" hidden>
+        <p class="intro-title">Знакомство с новыми словами</p>
+        <div class="intro-card" id="intro-card" aria-live="polite"></div>
+        <p class="hint" id="intro-progress"></p>
+        <div class="row-buttons">
+          <button type="button" id="intro-pause">Пауза</button>
+          <button type="button" id="intro-skip">К карточкам →</button>
+        </div>
+      </div>
+
+      <div id="review" hidden>
+        <div class="card" id="card" aria-live="polite">
+          <div class="card-front" id="card-front"></div>
+          <div class="card-back" id="card-back" hidden></div>
+        </div>
+        <button type="button" class="primary" id="reveal">Показать ответ <kbd>пробел</kbd></button>
+        <div class="grades" id="grades" hidden>
+          <button type="button" data-grade="1" class="again">Снова<small></small></button>
+          <button type="button" data-grade="2" class="hard">Трудно<small></small></button>
+          <button type="button" data-grade="3" class="good">Хорошо<small></small></button>
+          <button type="button" data-grade="4" class="easy">Легко<small></small></button>
+        </div>
+        <p class="hint">Клавиши: пробел — ответ, 1–4 — оценка</p>
+      </div>
+
+      <div id="session-done" class="done" hidden></div>
+    </section>
+
+    <!-- Поток -->
+    <section id="stream-view" hidden>
+      <p class="lead">Слова идут одно за другим с переводом и произношением. Хорошо подходит, чтобы
+        познакомиться со словами перед карточками или освежить выученные. На интервалы повторения не влияет.</p>
+      <div class="controls">
+        <label>Слова
+          <select id="stream-source"></select>
+        </label>
+        <label>Скорость
+          <select id="stream-speed">
+            <option value="0.7">0,7 с — очень быстро</option>
+            <option value="1">1 с</option>
+            <option value="1.5">1,5 с</option>
+            <option value="2">2 с</option>
+            <option value="3">3 с — медленно</option>
+          </select>
+        </label>
+        <label>Перевод
+          <select id="stream-reveal">
+            <option value="together">сразу</option>
+            <option value="after">через полсекунды — успеть вспомнить</option>
+          </select>
+        </label>
+        <label class="checkbox"><input type="checkbox" id="stream-speak"> Произносить</label>
+      </div>
+      <div class="stage" id="stream-stage" aria-live="off">
+        <div class="stage-word" id="stream-word"></div>
+        <div class="stage-translation" id="stream-translation"></div>
+      </div>
+      <div class="row-buttons">
+        <button type="button" class="primary" id="stream-toggle">Запустить</button>
+      </div>
+      <p class="hint" id="stream-count"></p>
+    </section>
+
+    <!-- 25-й кадр -->
+    <section id="flash-view" hidden>
+      <div class="notice">
+        <p><b>Экспериментальный режим.</b> Слова мелькают на 1/25 секунды — так быстро, что их почти
+          невозможно осознать. Эффект «25-го кадра» не доказан: автор знаменитого опыта 1957 года
+          Джеймс Вайкери позже признал, что выдумал его результаты, а исследования неосознаваемого
+          восприятия не находят, чтобы так запоминались слова. Режим оставлен для любопытства —
+          для запоминания используйте занятия и поток. Показы здесь на прогресс не влияют.</p>
+      </div>
+      <div class="notice warning">
+        <p><b>Осторожно: мерцание.</b> Не включайте режим, если у вас светочувствительная эпилепсия
+          или мерцание вызывает дискомфорт. Вспышки не чаще одной в секунду и только в рамке ниже.</p>
+        <label class="checkbox"><input type="checkbox" id="flash-consent"> Понимаю, включить режим</label>
+      </div>
+      <div class="controls">
+        <label>Слова
+          <select id="flash-source"></select>
+        </label>
+        <label>Длительность вспышки
+          <select id="flash-ms">
+            <option value="20">20 мс</option>
+            <option value="40">40 мс — 1/25 с</option>
+            <option value="80">80 мс</option>
+            <option value="150">150 мс — заметно</option>
+          </select>
+        </label>
+        <label>Пауза между вспышками
+          <select id="flash-gap">
+            <option value="1">1 с</option>
+            <option value="2">2 с</option>
+            <option value="3">3 с</option>
+            <option value="5">5 с</option>
+          </select>
+        </label>
+        <label class="checkbox"><input type="checkbox" id="flash-translation"> С переводом</label>
+      </div>
+      <div class="stage flash-stage" id="flash-stage">
+        <div class="stage-word" id="flash-word">+</div>
+        <div class="stage-translation" id="flash-translation-text"></div>
+      </div>
+      <div class="row-buttons">
+        <button type="button" class="primary" id="flash-toggle" disabled>Запустить</button>
+      </div>
+      <p class="hint" id="flash-count"></p>
+    </section>
+
+    <!-- Настройки -->
+    <section id="settings-view" hidden>
+      <div class="controls vertical">
+        <label>Новых слов в день
+          <select id="set-new">
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="15">15</option>
+            <option value="20">20</option>
+            <option value="30">30</option>
+          </select>
+        </label>
+        <label>Направление карточек
+          <select id="set-direction">
+            <option value="forward">Слово → перевод</option>
+            <option value="reverse">Перевод → слово</option>
+            <option value="mixed">Вперемешку</option>
+          </select>
+        </label>
+        <label>Знакомство с новыми словами
+          <select id="set-intro">
+            <option value="0">не показывать</option>
+            <option value="1.5">1,5 с на слово</option>
+            <option value="2.5">2,5 с на слово</option>
+            <option value="4">4 с на слово</option>
+          </select>
+        </label>
+        <label class="checkbox"><input type="checkbox" id="set-autospeak"> Произносить слова на карточках</label>
+      </div>
+
+      <h2 class="section-title">Резервная копия прогресса</h2>
+      <p class="hint">Прогресс хранится только в этом браузере. Сохраните копию, чтобы перенести его на другое
+        устройство или не потерять при очистке браузера.</p>
+      <div class="row-buttons">
+        <button type="button" id="export">Сохранить копию</button>
+        <label class="file-button">Загрузить копию<input type="file" id="import" accept="application/json,.json"></label>
+      </div>
+      <p class="hint" id="backup-status" aria-live="polite"></p>
+
+      <h2 class="section-title">Сброс</h2>
+      <button type="button" class="link-button danger" id="reset">Сбросить прогресс этого языка</button>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p class="hint" id="voice-note" hidden></p>
+    <a href="https://github.com/vpresweb/Word_Memory">GitHub</a>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
