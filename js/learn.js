@@ -1,7 +1,7 @@
 // Занятие: сначала повторения на сегодня, затем знакомство с новыми словами (быстрый поток)
 // и карточки. Проверка — выбором из 4 вариантов по уровням (levels.js) или, по настройке,
 // самооценкой «вспомни → проверь → оцени» в обе стороны. Ответ решает, когда слово вернётся.
-import { newCard, review, previewIntervals, formatInterval, isLearning, GRADES } from './srs.js';
+import { newCard, review, previewIntervals, formatInterval, isLearning, GRADES, AGAIN } from './srs.js';
 import { LEVELS, MAX_LEVEL, PROMOTE_AFTER, levelOf, streakOf, applyAnswer, gradeFor, pickOptions, levelRule } from './levels.js';
 import { wordId, dueWords, freshWords, pickNext, dayKey, endOfDay, markDay, packSession, unpackSession, sample } from './session.js';
 import { entryMeta, escapeHtml } from './data.js';
@@ -230,10 +230,15 @@ export function createSession(root, ctx) {
 
     const card = progress.cards[wordId(current)];
     level = levelOf(card);
-    reverse = level > 1;
-    levelLine.innerHTML = `${levelHtml(level, streakOf(card))} <span class="task">— ${LEVELS[level].task}</span>`;
-    levelNote.textContent = levelRule(level, streakOf(card));
-    if (level === 1) {
+    // 1-й уровень — два вопроса: прямой (слово → перевод), через несколько карточек — обратный.
+    const secondHalf = level === 1 && halves.has(wordId(current));
+    reverse = level > 1 || secondHalf;
+    const task = level === 1 ? (secondHalf ? 'Вопрос 2 из 2: выберите слово' : 'Вопрос 1 из 2: выберите перевод') : LEVELS[level].task;
+    levelLine.innerHTML = `${levelHtml(level, streakOf(card))} <span class="task">— ${task}</span>`;
+    levelNote.textContent = level === 1 && !secondHalf
+      ? `Через несколько карточек — обратный вопрос: перевод → слово. Засчитывается, если верны оба. ${levelRule(level, streakOf(card))}`
+      : levelRule(level, streakOf(card));
+    if (!reverse) {
       front.innerHTML = `${wordHtml(current)}${meta}`;
       back.innerHTML = exampleHtml(current);
     } else {
@@ -243,7 +248,7 @@ export function createSession(root, ctx) {
     if (level < 3) {
       options = pickOptions(current, words);
       choices.innerHTML = options
-        .map((e, i) => `<button type="button" data-choice="${i}"${level === 2 ? ' lang="' + escapeHtml(ctx.get().lang ?? '') + '"' : ''}>${escapeHtml(level === 1 ? e.translations.slice(0, 3).join(', ') : e.word)}</button>`)
+        .map((e, i) => `<button type="button" data-choice="${i}"${reverse ? ' lang="' + escapeHtml(ctx.get().lang ?? '') + '"' : ''}>${escapeHtml(reverse ? e.word : e.translations.slice(0, 3).join(', '))}</button>`)
         .join('');
       choices.hidden = false;
       revealButton.hidden = true;
@@ -256,7 +261,7 @@ export function createSession(root, ctx) {
     updateLeft();
     if (level === 3) revealButton.focus({ preventScroll: true });
     else document.activeElement?.blur?.();
-    if (level === 1 && settings.autospeak) speak(current.word, front.querySelector('[data-word]'));
+    if (!reverse && settings.autospeak) speak(current.word, front.querySelector('[data-word]'));
   }
 
   // Ответ выбором (уровни 1 и 2).
@@ -271,7 +276,7 @@ export function createSession(root, ctx) {
       else if (j === index) button.classList.add('wrong');
     });
     back.hidden = !back.innerHTML;
-    if (level === 2 && ctx.get().settings.autospeak) speak(current.word, back.querySelector('[data-word]'));
+    if (reverse && ctx.get().settings.autospeak) speak(current.word, back.querySelector('[data-word]'));
     answer(correct, Date.now() - shownAt);
   }
 
@@ -282,16 +287,24 @@ export function createSession(root, ctx) {
   }
 
   // Записать ответ: уровень и серия слова, интервал по алгоритму повторения.
-  function answer(correct, ms) {
+  function answer(correctNow, ms) {
     answered = true;
     const now = Date.now();
     const { progress } = ctx.get();
     const entry = current;
     const id = wordId(entry);
     const card = progress.cards[id] ?? { ...newCard(now), added: dayKey(now) };
+    let grade = gradeFor(correctNow, ms);
+    if (level === 1 && !halves.has(id)) {
+      firstHalf(entry, correctNow, grade);
+      return;
+    }
+    // Второй вопрос 1-го уровня: итог — по худшему из двух ответов.
+    if (halves.has(id)) grade = Math.min(grade, halves.get(id));
     halves.delete(id);
+    const correct = grade > AGAIN;
     const result = applyAnswer(card, correct);
-    const updated = { ...review(card, gradeFor(correct, ms), now), level: result.level, streak: result.streak };
+    const updated = { ...review(card, grade, now), level: result.level, streak: result.streak };
     progress.cards[id] = updated;
     markDay(progress, now);
     ctx.save();
@@ -305,8 +318,9 @@ export function createSession(root, ctx) {
     levelLine.innerHTML = levelHtml(result.level, result.streak);
     levelNote.textContent = levelRule(result.level, result.streak);
     recall.hidden = true;
-    let text = correct ? '✓ Верно' : '✗ Неверно';
-    if (!correct && level < 3) text += ' — правильный выделен';
+    let text = correctNow ? '✓ Верно' : '✗ Неверно';
+    if (!correctNow && level < 3) text += ' — правильный выделен';
+    if (correctNow && !correct) text += ' · но в прямом вопросе была ошибка — серия с нуля';
     if (result.promoted) text += ` · Новый уровень: ${LEVELS[result.level].name.toLowerCase()}!`;
     if (result.demoted) text += ` · Слово вернулось на уровень ${result.level}`;
     note.textContent = text;
@@ -315,12 +329,29 @@ export function createSession(root, ctx) {
       next();
       return;
     }
+    autoAdvance(!correctNow ? 3000 : result.promoted ? 2000 : 1100);
+  }
+
+  // Прямой вопрос 1-го уровня отвечен: слово вернётся обратным вопросом через несколько карточек,
+  // уровень и интервал решатся после него.
+  function firstHalf(entry, correctNow, grade) {
+    halves.set(wordId(entry), grade);
+    queue.splice(Math.min(REVERSE_GAP, queue.length), 0, entry);
+    current = null;
+    persist();
+    current = entry;
+    recall.hidden = true;
+    note.textContent = `${correctNow ? '✓ Верно' : '✗ Неверно — правильный выделен'} · Скоро обратный вопрос: перевод → слово`;
+    note.className = `answer-note ${correctNow ? 'ok' : 'no'}`;
+    autoAdvance(correctNow ? 1100 : 3000);
+  }
+
+  function autoAdvance(delay) {
     nextButton.hidden = false;
     // На телефоне кнопка может оказаться ниже края экрана — прокрутить к ней.
     nextButton.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
     // Дальше само: после верного ответа через секунду, после ошибки — через 3 секунды,
     // чтобы успеть рассмотреть правильный ответ. Раньше — «Дальше» или нажатие на карточку.
-    const delay = !correct ? 3000 : result.promoted ? 2000 : 1100;
     advanceTimer = setTimeout(() => { if (active && answered) next(); }, delay);
   }
 
