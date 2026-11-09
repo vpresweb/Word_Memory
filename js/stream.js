@@ -80,6 +80,57 @@ export function createStream(root, ctx) {
     return list[index++];
   }
 
+  // Через сколько миллисекунд показать ответ: «сразу» — 0, «after» (прежнее значение) — 0,5 с,
+  // числа — секунды.
+  const revealDelay = () => {
+    const v = revealMode.value;
+    if (v === 'together') return 0;
+    if (v === 'after') return 500;
+    return (Number(v) || 0.5) * 1000;
+  };
+
+  // Тишина нужной длины через <audio>: в свёрнутой вкладке таймеры браузер замедляет,
+  // а проигрывание звука — нет. Если звук не заиграл, обычная пауза.
+  const silenceUrls = new Map();
+  let silencePlayer = null;
+  function silenceUrl(ms) {
+    if (silenceUrls.has(ms)) return silenceUrls.get(ms);
+    const rate = 8000, n = Math.round((rate * ms) / 1000);
+    const buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+    const str = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+    str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVE'); str(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    str(36, 'data'); v.setUint32(40, n, true);
+    new Uint8Array(buf, 44).fill(128); // 8-битная тишина
+    const url = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    silenceUrls.set(ms, url);
+    return url;
+  }
+  // Разблокировать плеер нажатием «Запустить» (иначе телефон не даст играть звук позже).
+  function unlockSilence() {
+    try {
+      silencePlayer = silencePlayer || new Audio();
+      silencePlayer.src = silenceUrl(100);
+      silencePlayer.play().catch(() => {});
+    } catch { silencePlayer = null; }
+  }
+  async function pause(ms) {
+    if (ms <= 0) return;
+    if (silencePlayer) {
+      try {
+        silencePlayer.src = silenceUrl(ms);
+        await new Promise((resolve, reject) => {
+          silencePlayer.onended = resolve;
+          silencePlayer.onerror = reject;
+          silencePlayer.play().catch(reject);
+        });
+        return;
+      } catch { /* не заиграло — ниже обычная пауза */ }
+    }
+    await wait(ms);
+  }
+
   // Обратный поток: сначала перевод, ответ — слово. «Вперемешку» — случайно для каждого слова.
   const isReverse = () => directionMode.value === 'reverse' || (directionMode.value === 'mixed' && Math.random() < 0.5);
 
@@ -109,11 +160,12 @@ export function createStream(root, ctx) {
   function step() {
     if (!running) return;
     const entry = nextEntry();
-    const ms = Number(speed.value) * 1000;
-    const after = revealMode.value === 'after';
+    const delay = revealDelay();
+    const after = delay > 0;
+    // Ответ после задержки виден ещё не меньше секунды.
+    const ms = Math.max(Number(speed.value) * 1000, delay + 1000);
     const reverse = isReverse();
     showWord(entry, reverse, !after);
-    const delay = Math.min(500, ms / 2);
     if (after) timers.push(setTimeout(() => showAnswer(entry, reverse), delay));
     if (speakBox.checked) {
       // В обратном потоке слово звучит вместе с ответом, а не раньше — иначе подсказка.
@@ -132,12 +184,13 @@ export function createStream(root, ctx) {
     let silent = 0; // сколько слов подряд не удалось озвучить
     while (alive()) {
       const entry = nextEntry();
-      const after = revealMode.value === 'after';
+      const delay = revealDelay();
+      const after = delay > 0;
       const reverse = isReverse();
       showWord(entry, reverse, !after);
       if (silent >= 2) {
         // Два слова подряд не озвучились — дальше без звука, чтобы поток не тормозил.
-        if (after) timers.push(setTimeout(() => showAnswer(entry, reverse), 700));
+        if (after) timers.push(setTimeout(() => showAnswer(entry, reverse), Math.max(700, delay)));
         count();
         counter.textContent += ' · озвучка не отвечает: нажмите «Пауза» и снова «Запустить»';
         await wait(2000);
@@ -147,7 +200,12 @@ export function createStream(root, ctx) {
       const sayTranslation = () => speakAndWait(spokenTranslation(entry), 'ru');
       const firstOk = await (reverse ? sayTranslation() : sayWord());
       if (!alive()) return;
-      if (after) showAnswer(entry, reverse);
+      // Время вспомнить: тишина перед ответом (при «сразу» — без паузы).
+      if (after) {
+        await pause(delay);
+        if (!alive()) return;
+        showAnswer(entry, reverse);
+      }
       const secondOk = await (reverse ? sayWord() : sayTranslation());
       if (!alive()) return;
       const [wordOk, translationOk] = [firstOk, secondOk];
@@ -182,6 +240,7 @@ export function createStream(root, ctx) {
     toggle.textContent = 'Пауза';
     if (audioBox.checked) {
       const id = run;
+      if (revealDelay() > 0) unlockSilence();
       if (speechSupported() && (speechSynthesis.speaking || speechSynthesis.pending)) {
         // Остановить то, что звучало, и начать с паузой (иначе Chrome потеряет первую фразу).
         stopSpeech();
@@ -202,6 +261,10 @@ export function createStream(root, ctx) {
     run += 1;
     clearTimers();
     stopSpeech();
+    if (silencePlayer) {
+      silencePlayer.pause();
+      silencePlayer.onended?.(); // отпустить ожидающую паузу — цикл увидит остановку и выйдет
+    }
     toggle.textContent = 'Запустить';
   }
 
