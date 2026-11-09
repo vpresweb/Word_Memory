@@ -2,7 +2,7 @@
 // выбором из 4 вариантов, а задание усложняется по мере запоминания:
 //   1. Узнавание — видите слово, выбираете перевод из четырёх;
 //   2. Обратный выбор — видите перевод, выбираете слово из четырёх;
-//   3. Вспоминание — видите перевод, вспоминаете слово сами, открываете ответ и честно отмечаете.
+//   3. Вспоминание — видите перевод и пишете слово сами; проверка — checkTyped.
 // Переход на следующий уровень — после 3 верных ответов подряд. Ответы приходятся на разные
 // повторы (через 10 минут, через день, через несколько дней), поэтому 3 подряд — это уже
 // устойчивое знание, а не удачная догадка (шанс угадать 3 раза подряд — 1 из 64).
@@ -14,7 +14,7 @@ import { AGAIN, HARD, GOOD } from './srs.js';
 export const LEVELS = {
   1: { name: 'Узнавание', task: 'Выберите перевод' },
   2: { name: 'Обратный выбор', task: 'Выберите слово' },
-  3: { name: 'Вспоминание', task: 'Вспомните слово и проверьте себя' },
+  3: { name: 'Вспоминание', task: 'Напишите слово' },
 };
 export const MAX_LEVEL = 3;
 export const PROMOTE_AFTER = 3;
@@ -48,7 +48,7 @@ export function applyAnswer(card, correct) {
 // Примечание на карточке: как слово перейдёт на следующий уровень.
 export function levelRule(level, streak) {
   if (level >= MAX_LEVEL) {
-    return `Последний уровень. «Не вспомнил» вернёт слово на уровень ${MAX_LEVEL - 1}. `
+    return `Последний уровень. Ошибка вернёт слово на уровень ${MAX_LEVEL - 1}. `
       + 'Слово запомнено надолго, когда без ошибок дойдёт до повтора через 3 недели.';
   }
   const left = Math.max(1, PROMOTE_AFTER - streak);
@@ -57,11 +57,51 @@ export function levelRule(level, streak) {
     + (level > 1 ? `Ошибка вернёт слово на уровень ${level - 1}.` : 'Ошибка обнулит серию.');
 }
 
-// Оценка для алгоритма интервалов.
-export function gradeFor(correct, ms) {
-  if (!correct) return AGAIN;
-  return ms > SLOW_MS ? HARD : GOOD;
+// --- 3-й уровень: слово пишется с клавиатуры --------------------------------
+
+// Для сравнения: регистр, апострофы, знаки препинания и лишние пробелы не важны.
+const normalize = (s) => s.normalize('NFC').toLowerCase().replace(/[’`´]/g, "'")
+  .replace(/[?!¿¡.,;:…"«»()]/g, ' ').replace(/\s+/g, ' ').trim();
+const stripMarks = (s) => s.normalize('NFD').replace(/\p{M}/gu, '');
+// Частицы, которые пишут по привычке: to be, the house, o livro.
+const LEADING = ['to ', 'the ', 'a ', 'an ', 'o ', 'os ', 'as ', 'um ', 'uma '];
+
+function distance(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = tmp;
+    }
+  }
+  return row[b.length];
 }
+
+// Проверка написанного слова: 'exact' — верно; 'accents' — верно, кроме диакритики (á, ç, ã);
+// 'typo' — одна опечатка в длинном слове; 'wrong' — неверно. Пустой ввод — 'wrong'.
+export function checkTyped(input, word) {
+  const expected = normalize(word);
+  let typed = normalize(input ?? '');
+  if (!typed) return 'wrong';
+  for (const p of LEADING) {
+    if (typed.startsWith(p) && !expected.startsWith(p)) typed = typed.slice(p.length);
+  }
+  if (typed === expected) return 'exact';
+  if (stripMarks(typed) === stripMarks(expected)) return 'accents';
+  if (expected.length >= 6 && distance(stripMarks(typed), stripMarks(expected)) === 1) return 'typo';
+  return 'wrong';
+}
+
+// Оценка для алгоритма интервалов.
+// slow — порог «долго думал»; для написанного слова он больше: печать занимает время.
+export function gradeFor(correct, ms, slow = SLOW_MS) {
+  if (!correct) return AGAIN;
+  return ms > slow ? HARD : GOOD;
+}
+export const SLOW_TYPED_MS = 15000;
 
 const id = (e) => `${e.word}|${e.pos}`;
 const shortTranslation = (e) => e.translations.slice(0, 3);

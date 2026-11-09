@@ -199,6 +199,13 @@ kbd { font: inherit; font-size: .8em; opacity: .7; margin-left: 6px; }
 .recall button { padding: 14px 10px; font-weight: 600; }
 .recall .again { color: var(--again); border-color: var(--again); }
 .recall .good { color: var(--good); border-color: var(--good); }
+/* 3-й уровень: слово пишется в поле. 16px и больше — иначе iPhone увеличивает страницу при вводе. */
+.typed { display: flex; flex-direction: column; gap: 10px; }
+.typed[hidden] { display: none; }
+.typed input { font: inherit; font-size: 1.3rem; text-align: center; padding: 12px; border-radius: var(--radius); border: 2px solid var(--border); background: var(--surface); color: var(--text); width: 100%; box-sizing: border-box; }
+.typed input:focus { outline: none; border-color: var(--accent); }
+.typed input.right { border-color: var(--good); color: var(--good); font-weight: 700; }
+.typed input.wrong { border-color: var(--again); color: var(--again); text-decoration: line-through; }
 .answer-note { min-height: 1.5em; margin: 10px 0; text-align: center; font-weight: 600; }
 .answer-note.ok { color: var(--good); }
 .answer-note.no { color: var(--again); }

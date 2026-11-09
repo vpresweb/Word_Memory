@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { levelOf, streakOf, applyAnswer, gradeFor, pickOptions, levelRule, PROMOTE_AFTER, SLOW_MS } from '../js/levels.js';
+import { levelOf, streakOf, applyAnswer, gradeFor, pickOptions, levelRule, checkTyped, PROMOTE_AFTER, SLOW_MS } from '../js/levels.js';
 import { AGAIN, HARD, GOOD } from '../js/srs.js';
 
 const e = (word, pos, ...translations) => ({ word, pos, translations });
@@ -35,10 +35,26 @@ test('ошибка — на один уровень ниже, серия с ну
   assert.ok(top.streak <= PROMOTE_AFTER);
 });
 
+test('3-й уровень: проверка написанного слова', () => {
+  assert.equal(checkTyped('Be', 'be'), 'exact');
+  assert.equal(checkTyped('  to be ', 'be'), 'exact');
+  assert.equal(checkTyped('obrigado', 'obrigado'), 'exact');
+  assert.equal(checkTyped('o livro', 'livro'), 'exact');
+  assert.equal(checkTyped('tudo bem', 'tudo bem?'), 'exact');
+  assert.equal(checkTyped('what’s your name', "what's your name?"), 'exact');
+  assert.equal(checkTyped('voce', 'você'), 'accents');
+  assert.equal(checkTyped('coracao', 'coração'), 'accents');
+  assert.equal(checkTyped('obrigad', 'obrigado'), 'typo');
+  assert.equal(checkTyped('bee', 'be'), 'wrong'); // короткие слова — без поблажек
+  assert.equal(checkTyped('casa', 'livro'), 'wrong');
+  assert.equal(checkTyped('', 'be'), 'wrong');
+  assert.equal(checkTyped('a', 'a'), 'exact'); // артикль-слово не срезается
+});
+
 test('примечание: сколько верных ответов до следующего уровня', () => {
   assert.equal(levelRule(1, 0), 'Ещё 3 верных ответа подряд — переход на уровень 2 (обратный выбор). Ошибка обнулит серию.');
   assert.match(levelRule(2, 2), /^Ещё 1 верный ответ подряд — переход на уровень 3 \(вспоминание\)\. Ошибка вернёт слово на уровень 1\.$/);
-  assert.match(levelRule(3, 0), /^Последний уровень\. «Не вспомнил» вернёт слово на уровень 2/);
+  assert.match(levelRule(3, 0), /^Последний уровень\. Ошибка вернёт слово на уровень 2/);
 });
 
 test('оценка для интервалов: неверно — «Снова», долго — «Трудно», иначе — «Хорошо»', () => {

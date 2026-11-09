@@ -2,7 +2,7 @@
 // и карточки. Проверка — выбором из 4 вариантов по уровням (levels.js) или, по настройке,
 // самооценкой «вспомни → проверь → оцени» в обе стороны. Ответ решает, когда слово вернётся.
 import { newCard, review, previewIntervals, formatInterval, isLearning, GRADES, AGAIN } from './srs.js';
-import { LEVELS, MAX_LEVEL, PROMOTE_AFTER, levelOf, streakOf, applyAnswer, gradeFor, pickOptions, levelRule } from './levels.js';
+import { LEVELS, MAX_LEVEL, PROMOTE_AFTER, levelOf, streakOf, applyAnswer, gradeFor, pickOptions, levelRule, checkTyped, SLOW_TYPED_MS } from './levels.js';
 import { wordId, dueWords, freshWords, pickNext, dayKey, endOfDay, markDay, packSession, unpackSession, sample } from './session.js';
 import { entryMeta, escapeHtml } from './data.js';
 import { speak, stopSpeech } from './speech.js';
@@ -53,7 +53,9 @@ export function createSession(root, ctx) {
   const levelLine = $('level-line');
   const levelNote = $('level-rule');
   const choices = $('choices');
-  const recall = $('recall');
+  const typed = $('typed');
+  const typedInput = $('typed-input');
+  let typedNote = ''; // подсказка о написании для отметки ответа
   const note = $('answer-note');
   const nextButton = $('next-card');
   const keysHint = $('keys-hint');
@@ -63,7 +65,6 @@ export function createSession(root, ctx) {
   let options = [];
   let answered = false;
   let shownAt = 0;
-  let revealedAt = 0;
   let advanceTimer = null;
   const choiceMode = () => ctx.get().settings.check !== 'self';
 
@@ -205,7 +206,7 @@ export function createSession(root, ctx) {
     back.hidden = true;
     grades.hidden = true;
     choices.hidden = true;
-    recall.hidden = true;
+    typed.hidden = true;
     nextButton.hidden = true;
     note.textContent = '';
     note.className = 'answer-note';
@@ -255,12 +256,19 @@ export function createSession(root, ctx) {
       revealButton.hidden = true;
       keysHint.textContent = 'Клавиши: 1–4 — вариант, Enter — дальше';
     } else {
-      revealButton.hidden = false;
-      keysHint.textContent = 'Клавиши: пробел — ответ, 1 — не вспомнил, 2 — вспомнил';
+      // 3-й уровень: слово пишется с клавиатуры.
+      revealButton.hidden = true;
+      typedInput.value = '';
+      typedInput.readOnly = false;
+      typedInput.className = '';
+      typedInput.lang = ctx.get().lang ?? '';
+      typed.hidden = false;
+      keysHint.textContent = 'Enter — проверить, затем Enter — дальше';
     }
     show('review');
     updateLeft();
-    if (level === 3) revealButton.focus({ preventScroll: true });
+    // Экран занятия может стать видимым чуть позже (после start) — фокус в следующем кадре.
+    if (level === 3) requestAnimationFrame(() => { if (!answered && !typed.hidden) typedInput.focus({ preventScroll: true }); });
     else document.activeElement?.blur?.();
     if (!reverse && settings.autospeak) speak(current.word, front.querySelector('[data-word]'));
   }
@@ -281,10 +289,26 @@ export function createSession(root, ctx) {
     answer(correct, Date.now() - shownAt);
   }
 
-  // Ответ на 3-м уровне: «Вспомнил» / «Не вспомнил» после открытого ответа.
-  function recallAnswer(remembered) {
-    if (!current || answered || level !== 3 || !revealed) return;
-    answer(remembered, revealedAt - shownAt);
+  // Ответ на 3-м уровне: написанное слово (skip — «Не помню»).
+  function typedAnswer(skip = false) {
+    if (!current || answered || level !== 3) return;
+    const value = typedInput.value;
+    if (!skip && !value.trim()) {
+      typedInput.focus();
+      return;
+    }
+    const check = skip ? 'wrong' : checkTyped(value, current.word);
+    const correct = check !== 'wrong';
+    typedInput.readOnly = true;
+    typedInput.className = correct ? 'right' : 'wrong';
+    typedInput.blur(); // Enter после ответа — «Дальше»
+    revealed = true;
+    back.hidden = false;
+    if (ctx.get().settings.autospeak) speak(current.word, back.querySelector('[data-word]'));
+    typedNote = check === 'accents' ? ` · пишется: ${current.word}`
+      : check === 'typo' ? ` · опечатка, правильно: ${current.word}`
+      : !correct ? ` · правильно: ${current.word}` : '';
+    answer(correct, Date.now() - shownAt);
   }
 
   // Записать ответ: уровень и серия слова, интервал по алгоритму повторения.
@@ -295,7 +319,7 @@ export function createSession(root, ctx) {
     const entry = current;
     const id = wordId(entry);
     const card = progress.cards[id] ?? { ...newCard(now), added: dayKey(now) };
-    let grade = gradeFor(correctNow, ms);
+    let grade = gradeFor(correctNow, ms, level === 3 ? SLOW_TYPED_MS : undefined);
     if (level === 1 && !halves.has(id)) {
       firstHalf(entry, correctNow, grade);
       return;
@@ -318,19 +342,17 @@ export function createSession(root, ctx) {
 
     levelLine.innerHTML = levelHtml(result.level, result.streak);
     levelNote.textContent = levelRule(result.level, result.streak);
-    recall.hidden = true;
-    let text = correctNow ? '✓ Верно' : '✗ Неверно';
+    let text = (correctNow ? '✓ Верно' : '✗ Неверно') + (level === 3 ? typedNote : '');
+    typedNote = '';
     if (!correctNow && level < 3) text += ' — правильный выделен';
     if (correctNow && !correct) text += ' · но в прямом вопросе была ошибка — серия с нуля';
     if (result.promoted) text += ` · Новый уровень: ${LEVELS[result.level].name.toLowerCase()}!`;
     if (result.demoted) text += ` · Слово вернулось на уровень ${result.level}`;
     note.textContent = text;
     note.className = `answer-note ${correct ? 'ok' : 'no'}`;
-    if (level === 3 && correct && !result.promoted) {
-      next();
-      return;
-    }
-    autoAdvance(!correctNow ? 3000 : result.promoted ? 2000 : 1100);
+    // Написанное слово с подсказкой о написании — дольше, чтобы успеть прочитать.
+    const hinted = level === 3 && correctNow && text.includes('·');
+    autoAdvance(!correctNow ? 3000 : result.promoted || hinted ? 2200 : 1100);
   }
 
   // Прямой вопрос 1-го уровня отвечен: слово вернётся обратным вопросом через несколько карточек,
@@ -341,7 +363,6 @@ export function createSession(root, ctx) {
     current = null;
     persist();
     current = entry;
-    recall.hidden = true;
     note.textContent = `${correctNow ? '✓ Верно' : '✗ Неверно — правильный выделен'} · Скоро обратный вопрос: перевод → слово`;
     note.className = `answer-note ${correctNow ? 'ok' : 'no'}`;
     autoAdvance(correctNow ? 1100 : 3000);
@@ -358,17 +379,7 @@ export function createSession(root, ctx) {
 
   function reveal() {
     if (!current || revealed) return;
-    if (choiceMode()) {
-      if (level !== 3 || answered) return;
-      revealed = true;
-      revealedAt = Date.now();
-      back.hidden = false;
-      revealButton.hidden = true;
-      recall.hidden = false;
-      revealButton.blur();
-      if (ctx.get().settings.autospeak) speak(current.word, back.querySelector('[data-word]'));
-      return;
-    }
+    if (choiceMode()) return; // в проверке выбором ответ открывается сам после ответа
     revealed = true;
     back.hidden = false;
     revealButton.hidden = true;
@@ -522,9 +533,14 @@ export function createSession(root, ctx) {
     const button = event.target.closest('[data-choice]');
     if (button) choose(Number(button.dataset.choice));
   });
-  recall.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-recall]');
-    if (button) recallAnswer(button.dataset.recall === '1');
+  typed.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (answered) next();
+    else typedAnswer();
+  });
+  $('typed-skip').addEventListener('click', () => {
+    if (answered) next();
+    else typedAnswer(true);
   });
   nextButton.addEventListener('click', () => {
     if (answered) next();
@@ -560,12 +576,9 @@ export function createSession(root, ctx) {
       } else if (!answered && level < 3 && ['1', '2', '3', '4'].includes(key)) {
         event.preventDefault();
         choose(Number(key) - 1);
-      } else if (!answered && level === 3 && !revealed && (key === ' ' || key === 'Enter')) {
-        event.preventDefault();
-        reveal();
-      } else if (!answered && level === 3 && revealed && (key === '1' || key === '2')) {
-        event.preventDefault();
-        recallAnswer(key === '2');
+      } else if (!answered && level === 3 && /^\S$/u.test(key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        // Фокус ушёл с поля — первая же буква возвращает его туда.
+        typedInput.focus();
       }
       return;
     }
