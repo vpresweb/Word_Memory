@@ -395,11 +395,36 @@ export function createSession(root, ctx) {
     const { list, index, round } = introState;
     const { settings } = ctx.get();
     const entry = list[index];
-    introCard.innerHTML = `${wordHtml(entry)}<span class="meta">${escapeHtml(entryMeta(entry))}</span>
-      <span class="translation">${escapeHtml(translationText(entry))}</span>${exampleHtml(entry)}`;
-    introProgress.textContent = `${index + 1} из ${list.length} · круг ${round} из ${settings.introRounds}`;
-    if (settings.autospeak) speak(entry.word, introCard.querySelector('[data-word]'));
-    if (!introState.paused) introState.timer = setTimeout(introAdvance, settings.introSeconds * 1000);
+    const ms = settings.introSeconds * 1000;
+    const meta = `<span class="meta">${escapeHtml(entryMeta(entry))}</span>`;
+    const translation = `<span class="translation">${escapeHtml(translationText(entry))}</span>`;
+    // Чётные круги — обратный прогон: сначала перевод, через полпаузы — слово с произношением.
+    const reverse = round % 2 === 0;
+    introState.reveal = null;
+    introProgress.textContent = `${index + 1} из ${list.length} · круг ${round} из ${settings.introRounds}`
+      + (reverse ? ' · перевод → слово' : ' · слово → перевод');
+    if (!reverse) {
+      introCard.innerHTML = `${wordHtml(entry)}${meta}${translation}${exampleHtml(entry)}`;
+      if (settings.autospeak) speak(entry.word, introCard.querySelector('[data-word]'));
+      if (!introState.paused) introState.timer = setTimeout(introAdvance, ms);
+      return;
+    }
+    introCard.innerHTML = `${translation}${meta}<span class="intro-answer" hidden>${wordHtml(entry)}${exampleHtml(entry)}</span>`;
+    const answer = introCard.querySelector('.intro-answer');
+    introState.reveal = () => {
+      if (!answer.hidden) return;
+      answer.hidden = false;
+      if (settings.autospeak) speak(entry.word, answer.querySelector('[data-word]'));
+    };
+    if (introState.paused) {
+      introState.reveal();
+      return;
+    }
+    // Время на вспоминание — половина паузы, затем слово видно ещё полную паузу.
+    introState.timer = setTimeout(() => {
+      introState.reveal();
+      introState.timer = setTimeout(introAdvance, ms);
+    }, ms / 2);
   }
 
   function introAdvance() {
@@ -425,8 +450,10 @@ export function createSession(root, ctx) {
   function toggleIntroPause() {
     introState.paused = !introState.paused;
     introPause.textContent = introState.paused ? 'Продолжить' : 'Пауза';
-    if (introState.paused) clearTimeout(introState.timer);
-    else introStep();
+    if (introState.paused) {
+      clearTimeout(introState.timer);
+      introState.reveal?.(); // на паузе слово видно сразу
+    } else introStep();
   }
 
   function finish() {
