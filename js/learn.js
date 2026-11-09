@@ -3,7 +3,7 @@
 // самооценкой «вспомни → проверь → оцени» в обе стороны. Ответ решает, когда слово вернётся.
 import { newCard, review, previewIntervals, formatInterval, isLearning, GRADES } from './srs.js';
 import { LEVELS, MAX_LEVEL, PROMOTE_AFTER, levelOf, streakOf, applyAnswer, gradeFor, pickOptions, levelRule } from './levels.js';
-import { wordId, dueWords, freshWords, pickNext, dayKey, endOfDay, markDay, packSession, unpackSession } from './session.js';
+import { wordId, dueWords, freshWords, pickNext, dayKey, endOfDay, markDay, packSession, unpackSession, sample } from './session.js';
 import { entryMeta, escapeHtml } from './data.js';
 import { speak, stopSpeech } from './speech.js';
 
@@ -92,7 +92,8 @@ export function createSession(root, ctx) {
     const { words, progress, settings } = ctx.get();
     const due = dueWords(words, progress, now);
     const freshList = freshWords(words, progress, settings.newPerDay, now);
-    queue = [...due, ...freshList];
+    // Вперемешку — карточки в случайном порядке; иначе сначала повторения по сроку, затем новые от частых.
+    queue = settings.cardOrder === 'order' ? [...due, ...freshList] : sample([...due, ...freshList], Infinity);
     waiting = [];
     fresh = new Set(freshList.map(wordId));
     introDone = settings.introSeconds <= 0 || !freshList.length;

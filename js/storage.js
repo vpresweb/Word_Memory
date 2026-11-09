@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS = {
   lang: 'en',
   newPerDay: 10,
   check: 'choice', // choice: выбор из 4 вариантов по уровням (levels.js); self: самооценка
+  cardOrder: 'random', // random: карточки занятия вперемешку; order: повторения по сроку, затем новые
   autospeak: true,
   introSeconds: 2.5, // знакомство с новыми словами: сколько секунд на слово
   introRounds: 2,
