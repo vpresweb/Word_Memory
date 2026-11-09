@@ -214,6 +214,9 @@ kbd { font: inherit; font-size: .8em; opacity: .7; margin-left: 6px; }
 .stage { min-height: 240px; }
 .stage-word { font-size: 2.4rem; font-weight: 700; min-height: 1.3em; overflow-wrap: anywhere; }
 .stage-translation { font-size: 1.4rem; color: var(--accent); min-height: 1.5em; }
+/* Обратный поток: сверху перевод (длиннее слова), ответ — слово крупно. */
+.stage-word.reverse { font-size: 1.7rem; color: var(--accent); }
+.stage-word.reverse + .stage-translation { font-size: 2rem; font-weight: 700; color: var(--text); }
 .flash-stage .stage-word { color: var(--muted); }
 .flash-stage.flashing .stage-word { color: var(--text); }
 

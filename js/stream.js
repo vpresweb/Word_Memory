@@ -1,4 +1,5 @@
-// Быстрый поток: слова одно за другим с переводом и произношением.
+// Быстрый поток: слова одно за другим с переводом и произношением — прямой (слово → перевод),
+// обратный (перевод → слово) или вперемешку.
 // Пассивный режим — на интервалы повторения не влияет.
 //
 // Два режима:
@@ -29,6 +30,7 @@ export function createStream(root, ctx) {
   const source = $('stream-source');
   const speed = $('stream-speed');
   const revealMode = $('stream-reveal');
+  const directionMode = $('stream-direction');
   const speakBox = $('stream-speak');
   const audioBox = $('stream-audio');
   const repeatBox = $('stream-repeat');
@@ -53,6 +55,7 @@ export function createStream(root, ctx) {
     const s = ctx.settings();
     speed.value = String(s.streamSeconds);
     revealMode.value = s.streamReveal;
+    directionMode.value = s.streamDirection ?? 'forward';
     speakBox.checked = s.streamSpeak;
     audioBox.checked = s.streamAudio;
     repeatBox.checked = s.streamRepeat;
@@ -76,10 +79,25 @@ export function createStream(root, ctx) {
     return list[index++];
   }
 
-  function showWord(entry, withTranslation) {
-    word.innerHTML = `<span class="speak">${escapeHtml(entry.word)}</span>`;
-    translation.innerHTML = withTranslation ? escapeHtml(entry.translations.join(', ')) : '';
+  // Обратный поток: сначала перевод, ответ — слово. «Вперемешку» — случайно для каждого слова.
+  const isReverse = () => directionMode.value === 'reverse' || (directionMode.value === 'mixed' && Math.random() < 0.5);
+
+  const wordHtml = (entry) => `<span class="speak">${escapeHtml(entry.word)}</span>`;
+  const translationHtml = (entry) => escapeHtml(entry.translations.join(', '));
+
+  // Верхняя строка — то, что надо вспомнить, нижняя — ответ.
+  function showWord(entry, reverse, withAnswer) {
+    word.innerHTML = reverse ? translationHtml(entry) : wordHtml(entry);
+    word.classList.toggle('reverse', reverse);
+    translation.innerHTML = withAnswer ? (reverse ? wordHtml(entry) : translationHtml(entry)) : '';
   }
+
+  function showAnswer(entry, reverse) {
+    translation.innerHTML = reverse ? wordHtml(entry) : translationHtml(entry);
+  }
+
+  // Элемент, где сейчас слово, — для подсветки при произношении.
+  const wordElement = () => word.querySelector('.speak') ?? translation.querySelector('.speak');
 
   function count() {
     shown += 1;
@@ -92,16 +110,21 @@ export function createStream(root, ctx) {
     const entry = nextEntry();
     const ms = Number(speed.value) * 1000;
     const after = revealMode.value === 'after';
-    showWord(entry, !after);
-    if (after) {
-      timers.push(setTimeout(() => { translation.innerHTML = escapeHtml(entry.translations.join(', ')); }, Math.min(500, ms / 2)));
+    const reverse = isReverse();
+    showWord(entry, reverse, !after);
+    const delay = Math.min(500, ms / 2);
+    if (after) timers.push(setTimeout(() => showAnswer(entry, reverse), delay));
+    if (speakBox.checked) {
+      // В обратном потоке слово звучит вместе с ответом, а не раньше — иначе подсказка.
+      if (reverse && after) timers.push(setTimeout(() => speak(entry.word, wordElement()), delay));
+      else speak(entry.word, wordElement());
     }
-    if (speakBox.checked) speak(entry.word, word.firstElementChild);
     count();
     timers.push(setTimeout(step, ms));
   }
 
   // Аудиорежим: слово → перевод по-русски → (слово ещё раз) → следующее.
+  // Обратный: перевод по-русски → слово → (слово ещё раз).
   async function audioLoop(id) {
     const alive = () => running && run === id;
     const lang = ctx.lang();
@@ -109,20 +132,24 @@ export function createStream(root, ctx) {
     while (alive()) {
       const entry = nextEntry();
       const after = revealMode.value === 'after';
-      showWord(entry, !after);
+      const reverse = isReverse();
+      showWord(entry, reverse, !after);
       if (silent >= 2) {
         // Два слова подряд не озвучились — дальше без звука, чтобы поток не тормозил.
-        if (after) timers.push(setTimeout(() => { translation.innerHTML = escapeHtml(entry.translations.join(', ')); }, 700));
+        if (after) timers.push(setTimeout(() => showAnswer(entry, reverse), 700));
         count();
         counter.textContent += ' · озвучка не отвечает: нажмите «Пауза» и снова «Запустить»';
         await wait(2000);
         continue;
       }
-      const wordOk = await speakAndWait(entry.word, lang);
+      const sayWord = () => speakAndWait(entry.word, lang);
+      const sayTranslation = () => speakAndWait(spokenTranslation(entry), 'ru');
+      const firstOk = await (reverse ? sayTranslation() : sayWord());
       if (!alive()) return;
-      if (after) translation.innerHTML = escapeHtml(entry.translations.join(', '));
-      const translationOk = await speakAndWait(spokenTranslation(entry), 'ru');
+      if (after) showAnswer(entry, reverse);
+      const secondOk = await (reverse ? sayWord() : sayTranslation());
       if (!alive()) return;
+      const [wordOk, translationOk] = [firstOk, secondOk];
       if (repeatBox.checked) {
         await speakAndWait(entry.word, lang);
         if (!alive()) return;
@@ -190,6 +217,7 @@ export function createStream(root, ctx) {
     ctx.saveSettings({
       streamSeconds: Number(speed.value),
       streamReveal: revealMode.value,
+      streamDirection: directionMode.value,
       streamSpeak: speakBox.checked,
       streamAudio: audioBox.checked,
       streamRepeat: repeatBox.checked,
@@ -197,6 +225,7 @@ export function createStream(root, ctx) {
   };
   speed.addEventListener('change', persist);
   revealMode.addEventListener('change', persist);
+  directionMode.addEventListener('change', persist);
   speakBox.addEventListener('change', persist);
   repeatBox.addEventListener('change', persist);
   audioBox.addEventListener('change', () => {

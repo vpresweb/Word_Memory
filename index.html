@@ -114,7 +114,14 @@
             <option value="3">3 с — медленно</option>
           </select>
         </label>
-        <label>Перевод
+        <label>Направление
+          <select id="stream-direction">
+            <option value="forward">слово → перевод</option>
+            <option value="reverse">перевод → слово</option>
+            <option value="mixed">вперемешку</option>
+          </select>
+        </label>
+        <label>Ответ
           <select id="stream-reveal">
             <option value="together">сразу</option>
             <option value="after">через полсекунды — успеть вспомнить</option>
@@ -124,7 +131,8 @@
       </div>
       <div class="notice audio-notice">
         <label class="checkbox"><input type="checkbox" id="stream-audio"> <b>Аудио: перевод вслух, работает в фоне</b></label>
-        <p class="hint">Слово произносится, за ним — русский перевод, и сразу следующее слово. Можно свернуть
+        <p class="hint">Слово произносится, за ним — русский перевод, и сразу следующее слово
+          (в обратном потоке — сначала перевод, потом слово). Можно свернуть
           вкладку или работать в другой программе — поток будет звучать, как аудиоурок в наушниках.
           На телефоне браузер может остановить звук при блокировке экрана.</p>
         <label class="checkbox"><input type="checkbox" id="stream-repeat"> Повторять слово после перевода</label>

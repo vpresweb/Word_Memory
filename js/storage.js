@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
   introRounds: 2,
   streamSeconds: 1.5,
   streamReveal: 'together', // together: слово и перевод сразу; after: перевод через полсекунды
+  streamDirection: 'forward', // forward: слово → перевод; reverse: перевод → слово; mixed
   streamSpeak: true,
   streamAudio: false, // аудиорежим потока: перевод вслух, работает в свёрнутой вкладке
   streamRepeat: false,
