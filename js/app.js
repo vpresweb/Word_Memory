@@ -3,7 +3,7 @@ import { LANGUAGES, loadWords } from './data.js';
 import { summary, forecast, freshWords, wordsForSource, SOURCES, dayKey } from './session.js';
 import { loadProgress, saveProgress, loadSettings, saveSettings, validProgress, emptyProgress } from './storage.js';
 import { initSpeech, setSpeechLang, stopSpeech } from './speech.js';
-import { createSession, nextDueText } from './learn.js';
+import { createSession, nextDueText, startedToday } from './learn.js';
 import { createStream } from './stream.js';
 import { createFlash } from './flash.js';
 import { LEVELS, levelOf } from './levels.js';
@@ -103,6 +103,10 @@ function renderToday() {
   start.disabled = !work;
   start.textContent = work ? `Начать занятие · ${work}` : 'Начать занятие';
   $('start-hint').textContent = work ? '' : `На сегодня всё. ${nextDueText(state.progress, now)}`;
+  // Пройти обучение снова — когда слова сегодня уже начаты.
+  const today = startedToday(state.words, state.progress, now).length;
+  $('restart').hidden = !today;
+  $('restart').textContent = `Пройти обучение снова · ${today}`;
 
   const days = forecast(state.progress, now);
   const max = Math.max(1, ...days);
@@ -115,6 +119,11 @@ function renderToday() {
 $('start').addEventListener('click', () => {
   showView('session');
   session.start();
+});
+
+$('restart').addEventListener('click', () => {
+  showView('session');
+  if (!session.restartToday()) showView('today');
 });
 
 // --- Настройки ---------------------------------------------------------------

@@ -18,6 +18,15 @@ function exampleHtml(entry) {
 
 const translationText = (entry) => entry.translations.join(', ');
 
+// Слово начато сегодня (или ещё не начато) — первый день изучения.
+const isFirstDay = (card, now) => !card || card.added === dayKey(now);
+
+// Слова, начатые сегодня, — для «Пройти обучение снова».
+export function startedToday(words, progress, now) {
+  const today = dayKey(now);
+  return words.filter((e) => progress.cards[wordId(e)]?.added === today);
+}
+
 // Когда вернётся слово — для экрана «на сегодня всё».
 export function nextDueText(progress, now) {
   const dues = Object.values(progress.cards).filter((c) => c.state !== 'new').map((c) => c.due);
@@ -92,6 +101,23 @@ export function createSession(root, ctx) {
     const { words, progress, settings } = ctx.get();
     const due = dueWords(words, progress, now);
     const freshList = freshWords(words, progress, settings.newPerDay, now);
+    begin(due, freshList, settings);
+  }
+
+  // Пройти обучение снова: слова, начатые сегодня, возвращаются к самому началу —
+  // знакомство, затем карточки с 1-го уровня. Возвращает число слов (0 — проходить нечего).
+  function restartToday() {
+    const now = Date.now();
+    const { words, progress, settings } = ctx.get();
+    const list = startedToday(words, progress, now);
+    if (!list.length) return 0;
+    for (const entry of list) delete progress.cards[wordId(entry)];
+    ctx.save();
+    begin([], list, settings);
+    return list.length;
+  }
+
+  function begin(due, freshList, settings) {
     // Вперемешку — карточки в случайном порядке; иначе сначала повторения по сроку, затем новые от частых.
     queue = settings.cardOrder === 'order' ? [...due, ...freshList] : sample([...due, ...freshList], Infinity);
     waiting = [];
@@ -209,7 +235,7 @@ export function createSession(root, ctx) {
     level = levelOf(card);
     reverse = level > 1;
     levelLine.innerHTML = `${levelHtml(level, streakOf(card))} <span class="task">— ${LEVELS[level].task}</span>`;
-    levelNote.textContent = levelRule(level, streakOf(card));
+    levelNote.textContent = levelRule(level, streakOf(card), isFirstDay(card, Date.now()));
     if (level === 1) {
       front.innerHTML = `${wordHtml(current)}${meta}`;
       back.innerHTML = exampleHtml(current);
@@ -267,7 +293,8 @@ export function createSession(root, ctx) {
     const id = wordId(entry);
     const card = progress.cards[id] ?? { ...newCard(now), added: dayKey(now) };
     halves.delete(id);
-    const result = applyAnswer(card, correct);
+    const firstDay = isFirstDay(card, now);
+    const result = applyAnswer(card, correct, firstDay);
     const updated = { ...review(card, gradeFor(correct, ms), now), level: result.level, streak: result.streak };
     progress.cards[id] = updated;
     markDay(progress, now);
@@ -280,12 +307,12 @@ export function createSession(root, ctx) {
     current = entry;
 
     levelLine.innerHTML = levelHtml(result.level, result.streak);
-    levelNote.textContent = levelRule(result.level, result.streak);
+    levelNote.textContent = levelRule(result.level, result.streak, firstDay);
     recall.hidden = true;
     let text = correct ? '✓ Верно' : '✗ Неверно';
     if (!correct && level < 3) text += ' — правильный выделен';
     if (result.promoted) text += ` · Новый уровень: ${LEVELS[result.level].name.toLowerCase()}!`;
-    if (result.demoted) text += ` · Слово вернулось на уровень ${result.level}`;
+    if (result.demoted) text += firstDay ? ' · Первый день — слово начинается сначала' : ` · Слово вернулось на уровень ${result.level}`;
     note.textContent = text;
     note.className = `answer-note ${correct ? 'ok' : 'no'}`;
     if (level === 3 && correct && !result.promoted) {
@@ -411,14 +438,20 @@ export function createSession(root, ctx) {
     current = null;
     ctx.clearState();
     left.textContent = '';
-    const { progress } = ctx.get();
+    const { progress, words } = ctx.get();
     const now = Date.now();
+    const today = startedToday(words, progress, now).length;
     done.innerHTML = `
       <p class="word">${reviewed ? 'На сегодня всё' : 'Сейчас повторять нечего'}</p>
       <p>${reviewed ? `Карточек в занятии: ${reviewed}.` : ''} ${escapeHtml(nextDueText(progress, now))}</p>
-      <button type="button" class="primary" id="session-back">К статистике</button>`;
+      <div class="row-buttons">
+        <button type="button" class="primary" id="session-back">К статистике</button>
+        ${today ? `<button type="button" id="session-again">Пройти обучение снова · ${today}</button>` : ''}
+      </div>
+      ${today ? '<p class="hint">Слова, начатые сегодня, начнутся с самого начала: знакомство и карточки с 1-го уровня.</p>' : ''}`;
     show('done');
     done.querySelector('#session-back').addEventListener('click', ctx.onExit);
+    done.querySelector('#session-again')?.addEventListener('click', restartToday);
   }
 
   revealButton.addEventListener('click', reveal);
@@ -490,5 +523,5 @@ export function createSession(root, ctx) {
     }
   });
 
-  return { start, resume, pending, stop, isActive: () => active };
+  return { start, resume, pending, restartToday, stop, isActive: () => active };
 }

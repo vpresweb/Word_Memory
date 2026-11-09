@@ -6,7 +6,8 @@
 // Переход на следующий уровень — после 3 верных ответов подряд. Ответы приходятся на разные
 // повторы (через 10 минут, через день, через несколько дней), поэтому 3 подряд — это уже
 // устойчивое знание, а не удачная догадка (шанс угадать 3 раза подряд — 1 из 64).
-// Ошибка обнуляет серию; ошибка на 3-м уровне возвращает на 2-й.
+// Ошибка обнуляет серию; ошибка на 3-м уровне возвращает на 2-й. В первый день (слово начато
+// сегодня) любая ошибка возвращает слово к самому началу — на 1-й уровень.
 // Когда повторять, по-прежнему решает алгоритм интервалов (srs.js): оценку он получает
 // автоматически — неверно → «Снова», верно, но долго думали → «Трудно», верно → «Хорошо».
 import { AGAIN, HARD, GOOD } from './srs.js';
@@ -33,10 +34,11 @@ export function levelOf(card) {
 export const streakOf = (card) => (card && Number.isInteger(card.streak) ? card.streak : 0);
 
 // Новый уровень и серия после ответа: { level, streak, promoted, demoted }.
-export function applyAnswer(card, correct) {
+// firstDay — слово начато сегодня: ошибка возвращает его к самому началу, на 1-й уровень.
+export function applyAnswer(card, correct, firstDay = false) {
   const level = levelOf(card);
   if (!correct) {
-    const down = level === MAX_LEVEL ? level - 1 : level;
+    const down = firstDay ? 1 : level === MAX_LEVEL ? level - 1 : level;
     return { level: down, streak: 0, promoted: false, demoted: down < level };
   }
   const streak = streakOf(card) + 1;
@@ -45,15 +47,15 @@ export function applyAnswer(card, correct) {
 }
 
 // Примечание на карточке: как слово перейдёт на следующий уровень.
-export function levelRule(level, streak) {
+export function levelRule(level, streak, firstDay = false) {
   if (level >= MAX_LEVEL) {
-    return `Последний уровень. «Не вспомнил» вернёт слово на уровень ${MAX_LEVEL - 1}. `
+    return `Последний уровень. «Не вспомнил» вернёт слово на уровень ${firstDay ? 1 : MAX_LEVEL - 1}. `
       + 'Слово запомнено надолго, когда без ошибок дойдёт до повтора через 3 недели.';
   }
   const left = Math.max(1, PROMOTE_AFTER - streak);
   const answers = left === 1 ? 'верный ответ' : 'верных ответа';
   return `Ещё ${left} ${answers} подряд — переход на уровень ${level + 1} (${LEVELS[level + 1].name.toLowerCase()}). `
-    + 'Ошибка обнулит серию.';
+    + (firstDay && level > 1 ? 'Слово начато сегодня: ошибка вернёт его на уровень 1.' : 'Ошибка обнулит серию.');
 }
 
 // Оценка для алгоритма интервалов.
