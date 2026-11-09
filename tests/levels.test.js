@@ -25,8 +25,9 @@ test('3 верных подряд — следующий уровень, сер�
   assert.deepEqual([up.level, up.streak, up.promoted], [2, 0, true]);
 });
 
-test('ошибка обнуляет серию; на 3-м уровне — возврат на 2-й; 3-й уровень — последний', () => {
-  assert.deepEqual(applyAnswer({ level: 2, streak: 2 }, false), { level: 2, streak: 0, promoted: false, demoted: false });
+test('ошибка — на один уровень ниже, серия с нуля; 3-й уровень — последний', () => {
+  assert.deepEqual(applyAnswer({ level: 1, streak: 2 }, false), { level: 1, streak: 0, promoted: false, demoted: false });
+  assert.deepEqual(applyAnswer({ level: 2, streak: 2 }, false), { level: 1, streak: 0, promoted: false, demoted: true });
   assert.deepEqual(applyAnswer({ level: 3, streak: 2 }, false), { level: 2, streak: 0, promoted: false, demoted: true });
   const top = applyAnswer({ level: 3, streak: 2 }, true);
   assert.equal(top.level, 3);
@@ -34,18 +35,9 @@ test('ошибка обнуляет серию; на 3-м уровне — во�
   assert.ok(top.streak <= PROMOTE_AFTER);
 });
 
-test('первый день: любая ошибка возвращает слово на 1-й уровень', () => {
-  assert.deepEqual(applyAnswer({ level: 2, streak: 2 }, false, true), { level: 1, streak: 0, promoted: false, demoted: true });
-  assert.deepEqual(applyAnswer({ level: 3, streak: 0 }, false, true), { level: 1, streak: 0, promoted: false, demoted: true });
-  assert.deepEqual(applyAnswer({ level: 1, streak: 2 }, false, true), { level: 1, streak: 0, promoted: false, demoted: false });
-  assert.equal(applyAnswer({ level: 1, streak: 2 }, true, true).level, 2);
-  assert.match(levelRule(2, 0, true), /ошибка вернёт его на уровень 1/);
-  assert.match(levelRule(3, 0, true), /вернёт слово на уровень 1/);
-});
-
 test('примечание: сколько верных ответов до следующего уровня', () => {
   assert.equal(levelRule(1, 0), 'Ещё 3 верных ответа подряд — переход на уровень 2 (обратный выбор). Ошибка обнулит серию.');
-  assert.match(levelRule(2, 2), /^Ещё 1 верный ответ подряд — переход на уровень 3 \(вспоминание\)/);
+  assert.match(levelRule(2, 2), /^Ещё 1 верный ответ подряд — переход на уровень 3 \(вспоминание\)\. Ошибка вернёт слово на уровень 1\.$/);
   assert.match(levelRule(3, 0), /^Последний уровень\. «Не вспомнил» вернёт слово на уровень 2/);
 });
 

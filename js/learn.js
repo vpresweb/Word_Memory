@@ -18,9 +18,6 @@ function exampleHtml(entry) {
 
 const translationText = (entry) => entry.translations.join(', ');
 
-// Слово начато сегодня (или ещё не начато) — первый день изучения.
-const isFirstDay = (card, now) => !card || card.added === dayKey(now);
-
 // Слова, начатые сегодня, — для «Пройти обучение снова».
 export function startedToday(words, progress, now) {
   const today = dayKey(now);
@@ -235,7 +232,7 @@ export function createSession(root, ctx) {
     level = levelOf(card);
     reverse = level > 1;
     levelLine.innerHTML = `${levelHtml(level, streakOf(card))} <span class="task">— ${LEVELS[level].task}</span>`;
-    levelNote.textContent = levelRule(level, streakOf(card), isFirstDay(card, Date.now()));
+    levelNote.textContent = levelRule(level, streakOf(card));
     if (level === 1) {
       front.innerHTML = `${wordHtml(current)}${meta}`;
       back.innerHTML = exampleHtml(current);
@@ -293,8 +290,7 @@ export function createSession(root, ctx) {
     const id = wordId(entry);
     const card = progress.cards[id] ?? { ...newCard(now), added: dayKey(now) };
     halves.delete(id);
-    const firstDay = isFirstDay(card, now);
-    const result = applyAnswer(card, correct, firstDay);
+    const result = applyAnswer(card, correct);
     const updated = { ...review(card, gradeFor(correct, ms), now), level: result.level, streak: result.streak };
     progress.cards[id] = updated;
     markDay(progress, now);
@@ -307,12 +303,12 @@ export function createSession(root, ctx) {
     current = entry;
 
     levelLine.innerHTML = levelHtml(result.level, result.streak);
-    levelNote.textContent = levelRule(result.level, result.streak, firstDay);
+    levelNote.textContent = levelRule(result.level, result.streak);
     recall.hidden = true;
     let text = correct ? '✓ Верно' : '✗ Неверно';
     if (!correct && level < 3) text += ' — правильный выделен';
     if (result.promoted) text += ` · Новый уровень: ${LEVELS[result.level].name.toLowerCase()}!`;
-    if (result.demoted) text += firstDay ? ' · Первый день — слово начинается сначала' : ` · Слово вернулось на уровень ${result.level}`;
+    if (result.demoted) text += ` · Слово вернулось на уровень ${result.level}`;
     note.textContent = text;
     note.className = `answer-note ${correct ? 'ok' : 'no'}`;
     if (level === 3 && correct && !result.promoted) {
