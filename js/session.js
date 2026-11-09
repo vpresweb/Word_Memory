@@ -53,13 +53,19 @@ export function dueWords(words, progress, now) {
 // Следующая карточка занятия.
 // queue — ещё не показанные слова по порядку; waiting — слова изучения, которые вернутся позже
 // ([{ entry, due }]). Возвращает { entry, from: 'waiting' | 'queue' } или null, если всё сделано.
-export function pickNext(queue, waiting, now) {
-  const ready = waiting.filter((w) => w.due <= now).sort((a, b) => a.due - b.due)[0];
-  if (ready) return { entry: ready.entry, from: 'waiting' };
-  if (queue.length) return { entry: queue[0], from: 'queue' };
-  const soon = waiting.filter((w) => w.due <= now + LEARN_AHEAD).sort((a, b) => a.due - b.due)[0];
-  if (soon) return { entry: soon.entry, from: 'waiting' };
-  return null;
+// last — только что показанное слово: если есть другие, оно не идёт второй раз подряд
+// (иначе слово с ошибками крутилось бы одно, пока остальные ждут).
+export function pickNext(queue, waiting, now, last = null) {
+  const byDue = (limit) => waiting.filter((w) => w.due <= limit).sort((a, b) => a.due - b.due).map((w) => w.entry);
+  const candidates = [
+    ...byDue(now).map((entry) => ({ entry, from: 'waiting' })),
+    ...queue.map((entry) => ({ entry, from: 'queue' })),
+  ];
+  const soon = byDue(now + LEARN_AHEAD).filter((e) => !candidates.some((c) => c.entry === e));
+  candidates.push(...soon.map((entry) => ({ entry, from: 'waiting' })));
+  if (!candidates.length) return null;
+  const isLast = (c) => last && wordId(c.entry) === wordId(last);
+  return candidates.find((c) => !isLast(c)) ?? candidates[0];
 }
 
 // Незаконченное занятие — для сохранения: только ключи слов, сами слова берутся из словаря.

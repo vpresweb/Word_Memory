@@ -170,8 +170,9 @@ export function createSession(root, ctx) {
 
   function next() {
     clearTimeout(advanceTimer);
+    const last = current;
     current = null;
-    const pick = pickNext(queue, waiting, Date.now());
+    const pick = pickNext(queue, waiting, Date.now(), last);
     if (!pick) {
       finish();
       return;
@@ -180,7 +181,7 @@ export function createSession(root, ctx) {
       runIntro(queue.filter((e) => fresh.has(wordId(e))));
       return;
     }
-    if (pick.from === 'queue') queue.shift();
+    if (pick.from === 'queue') queue.splice(queue.indexOf(pick.entry), 1);
     else waiting = waiting.filter((w) => w.entry !== pick.entry);
     current = pick.entry;
     renderCard();

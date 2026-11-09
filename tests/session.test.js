@@ -91,3 +91,15 @@ test('наборы для потока', () => {
   assert.equal(random.length, Math.min(30, words.length));
   assert.equal(new Set(random.map((e) => e.word)).size, random.length);
 });
+
+test('только что показанное слово не идёт второй раз подряд, если есть другие', () => {
+  const [a, b, c] = ['be', 'have', 'do'].map((word) => ({ word, pos: 'verb', translations: ['x'] }));
+  // b с ошибкой вернётся через минуту, c — через 10: всё равно следующим будет c, а не снова b.
+  const waiting = [{ entry: b, due: NOW + MINUTE }, { entry: c, due: NOW + 10 * MINUTE }];
+  assert.equal(pickNext([], waiting, NOW, b).entry, c);
+  assert.equal(pickNext([b, a], [], NOW, b).entry, a);
+  assert.equal(pickNext([], [{ entry: b, due: NOW - 1 }, { entry: a, due: NOW - 1 }], NOW, b).entry, a);
+  // других нет — то же слово
+  assert.equal(pickNext([b], [], NOW, b).entry, b);
+  assert.equal(pickNext([], [{ entry: b, due: NOW + MINUTE }], NOW, b).entry, b);
+});
