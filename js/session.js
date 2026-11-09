@@ -162,9 +162,24 @@ export const SOURCES = {
   learning: 'Все начатые, но ещё не выученные',
   next: 'Следующие 30 новых слов',
   learned: 'Выученные — освежить',
+  random: 'Случайные 30 слов из всего словаря',
 };
 
-export function wordsForSource(kind, words, progress, settings, now) {
+export const RANDOM_COUNT = 30;
+
+// Случайная выборка без повторов (частичное перемешивание Фишера — Йетса).
+export function sample(list, count, random = Math.random) {
+  const a = [...list];
+  const n = Math.min(count, a.length);
+  for (let i = 0; i < n; i++) {
+    const j = i + Math.floor(random() * (a.length - i));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+
+export function wordsForSource(kind, words, progress, settings, now, random = Math.random) {
+  if (kind === 'random') return sample(words, RANDOM_COUNT, random);
   const cardOf = (entry) => progress.cards[wordId(entry)];
   if (kind === 'today') {
     const fresh = freshWords(words, progress, settings.newPerDay, now);

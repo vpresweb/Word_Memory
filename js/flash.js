@@ -43,7 +43,8 @@ export function createFlash(root, ctx) {
   function flashOnce() {
     if (!running) return;
     if (index >= list.length) {
-      list = shuffle(list);
+      // Случайный набор пройден — следующие случайные слова, иначе — тот же набор вперемешку.
+      list = source.value === 'random' ? ctx.wordsFor('random') : shuffle(list);
       index = 0;
     }
     const entry = list[index++];

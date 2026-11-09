@@ -1,8 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  wordId, dayKey, freshWords, dueWords, pickNext, streak, summary, forecast, markDay, wordsForSource, LEARN_AHEAD,
+  wordId, dayKey, freshWords, dueWords, pickNext, streak, summary, forecast, markDay, wordsForSource, sample, LEARN_AHEAD,
 } from '../js/session.js';
+
+test('случайная выборка: без повторов, не больше нужного, из всего списка', () => {
+  const list = Array.from({ length: 100 }, (_, i) => i);
+  const picked = sample(list, 30);
+  assert.equal(picked.length, 30);
+  assert.equal(new Set(picked).size, 30);
+  assert.ok(picked.every((x) => list.includes(x)));
+  assert.equal(sample([1, 2], 30).length, 2);
+  assert.notDeepEqual(sample(list, 30, () => 0.99), sample(list, 30, () => 0));
+});
 import { newCard, review, GOOD, EASY, MINUTE, DAY } from '../js/srs.js';
 
 const NOW = new Date(2026, 10, 8, 12, 0).getTime(); // местное время, полдень
@@ -77,4 +87,7 @@ test('наборы для потока', () => {
   assert.deepEqual(wordsForSource('learning', words, p, settings, NOW).map((e) => e.word), ['have']);
   assert.deepEqual(wordsForSource('today', words, p, settings, NOW).map((e) => e.word), ['do', 'have']);
   assert.equal(wordsForSource('next', words, p, settings, NOW).length, 5);
+  const random = wordsForSource('random', words, p, settings, NOW);
+  assert.equal(random.length, Math.min(30, words.length));
+  assert.equal(new Set(random.map((e) => e.word)).size, random.length);
 });

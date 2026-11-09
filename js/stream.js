@@ -73,7 +73,8 @@ export function createStream(root, ctx) {
 
   function nextEntry() {
     if (index >= list.length) {
-      list = shuffle(list);
+      // Случайный набор пройден — следующие случайные слова, иначе — тот же набор вперемешку.
+      list = source.value === 'random' ? ctx.wordsFor('random') : shuffle(list);
       index = 0;
     }
     return list[index++];
