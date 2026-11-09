@@ -8,7 +8,6 @@ export const DEFAULT_SETTINGS = {
   lang: 'en',
   newPerDay: 10,
   check: 'choice', // choice: выбор из 4 вариантов по уровням (levels.js); self: самооценка
-  direction: 'forward', // для самооценки — forward: слово → перевод; reverse: перевод → слово; mixed
   autospeak: true,
   introSeconds: 2.5, // знакомство с новыми словами: сколько секунд на слово
   introRounds: 2,

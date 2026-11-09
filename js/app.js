@@ -122,19 +122,13 @@ $('start').addEventListener('click', () => {
 function renderSettings() {
   $('set-new').value = String(state.settings.newPerDay);
   $('set-check').value = state.settings.check;
-  $('direction-label').hidden = state.settings.check !== 'self';
-  $('set-direction').value = state.settings.direction;
   $('set-intro').value = String(state.settings.introSeconds);
   $('set-autospeak').checked = state.settings.autospeak;
   $('backup-status').textContent = '';
 }
 
 $('set-new').addEventListener('change', (e) => updateSettings({ newPerDay: Number(e.target.value) }));
-$('set-check').addEventListener('change', (e) => {
-  updateSettings({ check: e.target.value });
-  $('direction-label').hidden = e.target.value !== 'self';
-});
-$('set-direction').addEventListener('change', (e) => updateSettings({ direction: e.target.value }));
+$('set-check').addEventListener('change', (e) => updateSettings({ check: e.target.value }));
 $('set-intro').addEventListener('change', (e) => updateSettings({ introSeconds: Number(e.target.value) }));
 $('set-autospeak').addEventListener('change', (e) => updateSettings({ autospeak: e.target.checked }));
 

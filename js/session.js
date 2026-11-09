@@ -64,7 +64,8 @@ export function pickNext(queue, waiting, now) {
 
 // Незаконченное занятие — для сохранения: только ключи слов, сами слова берутся из словаря.
 // Показанная, но не оценённая карточка возвращается в начало очереди.
-export function packSession({ queue, waiting, fresh, introDone, reviewed, current }, now) {
+// halves — слова, прошедшие «слово → перевод» в режиме самооценки: { [id]: оценка }.
+export function packSession({ queue, waiting, fresh, introDone, reviewed, current, halves }, now) {
   return {
     day: dayKey(now),
     queue: [...(current ? [current] : []), ...queue].map(wordId),
@@ -72,6 +73,7 @@ export function packSession({ queue, waiting, fresh, introDone, reviewed, curren
     fresh: [...fresh],
     introDone: Boolean(introDone),
     reviewed: reviewed || 0,
+    halves: Object.fromEntries(halves ?? []),
   };
 }
 
@@ -103,12 +105,16 @@ export function unpackSession(saved, words, progress, now) {
   }
   if (!queue.length && !waiting.length) return null;
   const freshLeft = queue.map(wordId).filter((id) => fresh.has(id));
+  const inQueue = new Set(queue.map(wordId));
+  const halves = Object.entries(saved.halves && typeof saved.halves === 'object' ? saved.halves : {})
+    .filter(([id, grade]) => inQueue.has(id) && Number.isInteger(grade) && grade >= 1 && grade <= 4);
   return {
     queue,
     waiting,
     fresh: freshLeft,
     introDone: Boolean(saved.introDone) || !freshLeft.length,
     reviewed: Number(saved.reviewed) || 0,
+    halves,
   };
 }
 

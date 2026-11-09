@@ -1,6 +1,6 @@
 // Занятие: сначала повторения на сегодня, затем знакомство с новыми словами (быстрый поток)
 // и карточки. Проверка — выбором из 4 вариантов по уровням (levels.js) или, по настройке,
-// самооценкой «вспомни → проверь → оцени». Ответ решает, когда слово вернётся.
+// самооценкой «вспомни → проверь → оцени» в обе стороны. Ответ решает, когда слово вернётся.
 import { newCard, review, previewIntervals, formatInterval, isLearning, GRADES } from './srs.js';
 import { LEVELS, MAX_LEVEL, PROMOTE_AFTER, levelOf, streakOf, applyAnswer, gradeFor, pickOptions, levelRule } from './levels.js';
 import { wordId, dueWords, freshWords, pickNext, dayKey, endOfDay, markDay, packSession, unpackSession } from './session.js';
@@ -67,6 +67,10 @@ export function createSession(root, ctx) {
   let introDone = true;
   let current = null;
   let reverse = false;
+  // Самооценка: слово проходит оба направления. Здесь — оценки за «слово → перевод»,
+  // слово ждёт в очереди обратную карточку; интервал — по худшей из двух оценок.
+  let halves = new Map();
+  const REVERSE_GAP = 3; // через сколько карточек показать обратную
   let revealed = false;
   let reviewed = 0;
   let active = false;
@@ -93,6 +97,7 @@ export function createSession(root, ctx) {
     fresh = new Set(freshList.map(wordId));
     introDone = settings.introSeconds <= 0 || !freshList.length;
     current = null;
+    halves = new Map();
     reviewed = 0;
     active = true;
     next();
@@ -101,7 +106,7 @@ export function createSession(root, ctx) {
   // Сохранить, где остановились: после перезагрузки или на другом устройстве занятие продолжится.
   function persist() {
     if (!active) return;
-    ctx.saveState(packSession({ queue, waiting, fresh, introDone, reviewed, current }, Date.now()));
+    ctx.saveState(packSession({ queue, waiting, fresh, introDone, reviewed, current, halves }, Date.now()));
   }
 
   // Что осталось от сохранённого сегодняшнего занятия (null — нечего продолжать).
@@ -125,6 +130,7 @@ export function createSession(root, ctx) {
     }
     ({ queue, waiting, introDone, reviewed } = s);
     fresh = new Set(s.fresh);
+    halves = new Map(s.halves);
     current = null;
     active = true;
     next();
@@ -182,9 +188,11 @@ export function createSession(root, ctx) {
     const translation = `<span class="translation">${escapeHtml(translationText(current))}</span>`;
 
     if (!choiceMode()) {
-      reverse = settings.direction === 'reverse' || (settings.direction === 'mixed' && Math.random() < 0.5);
-      levelLine.textContent = '';
-      levelNote.textContent = '';
+      reverse = halves.has(wordId(current));
+      levelLine.textContent = reverse ? 'Карточка 2 из 2 · перевод → слово' : 'Карточка 1 из 2 · слово → перевод';
+      levelNote.textContent = reverse
+        ? 'Интервал повторения — по худшей из двух оценок.'
+        : 'Через несколько карточек это слово вернётся в обратную сторону: перевод → слово.';
       front.innerHTML = reverse ? `${translation}${meta}` : `${wordHtml(current)}${meta}`;
       back.innerHTML = `${reverse ? wordHtml(current) : translation}${exampleHtml(current)}`;
       revealButton.hidden = false;
@@ -257,6 +265,7 @@ export function createSession(root, ctx) {
     const entry = current;
     const id = wordId(entry);
     const card = progress.cards[id] ?? { ...newCard(now), added: dayKey(now) };
+    halves.delete(id);
     const result = applyAnswer(card, correct);
     const updated = { ...review(card, gradeFor(correct, ms), now), level: result.level, streak: result.streak };
     progress.cards[id] = updated;
@@ -311,7 +320,11 @@ export function createSession(root, ctx) {
     const { progress, settings } = ctx.get();
     const card = progress.cards[wordId(current)] ?? newCard(now);
     const intervals = previewIntervals(card, now);
-    for (const g of GRADES) grades.querySelector(`[data-grade="${g}"] small`).textContent = formatInterval(intervals[g]);
+    // На прямой карточке интервал ещё не решён — его подписи покажет обратная.
+    const first = halves.get(wordId(current));
+    for (const g of GRADES) {
+      grades.querySelector(`[data-grade="${g}"] small`).textContent = reverse ? formatInterval(intervals[Math.min(g, first ?? g)]) : '';
+    }
     grades.hidden = false;
     // Фокус на кнопки оценки не переводим: отпущенный пробел нажал бы «Хорошо» сам.
     revealButton.blur();
@@ -323,8 +336,17 @@ export function createSession(root, ctx) {
     const now = Date.now();
     const { progress } = ctx.get();
     const id = wordId(current);
+    if (!halves.has(id)) {
+      // Прямая карточка оценена — слово вернётся обратной через несколько карточек.
+      halves.set(id, value);
+      queue.splice(Math.min(REVERSE_GAP, queue.length), 0, current);
+      next();
+      return;
+    }
+    const worst = Math.min(value, halves.get(id));
+    halves.delete(id);
     const card = progress.cards[id] ?? { ...newCard(now), added: dayKey(now) };
-    const updated = review(card, value, now);
+    const updated = review(card, worst, now);
     progress.cards[id] = updated;
     markDay(progress, now);
     ctx.save();
