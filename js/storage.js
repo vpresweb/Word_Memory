@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS = {
   streamSpeak: true,
   streamAudio: false, // аудиорежим потока: перевод вслух, работает в свёрнутой вкладке
   streamRepeat: false,
+  streamMnemonic: true, // показывать ассоциацию вместе с ответом
   flashMs: 40,
   flashGap: 2,
   flashWithTranslation: true,

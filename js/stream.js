@@ -8,6 +8,7 @@
 //   событию «фраза дозвучала», а не по таймеру, поэтому поток продолжает звучать, когда вкладка
 //   свёрнута или открыта другая программа (таймеры свёрнутых вкладок Chrome замедляет).
 import { escapeHtml } from './data.js';
+import { mnemonicHtml } from './mnemonics.js';
 import { speak, speakAndWait, stopSpeech, unlockSpeech, speechSupported } from './speech.js';
 
 export function shuffle(list) {
@@ -34,6 +35,7 @@ export function createStream(root, ctx) {
   const speakBox = $('stream-speak');
   const audioBox = $('stream-audio');
   const repeatBox = $('stream-repeat');
+  const mnemonicBox = $('stream-mnemonic');
   const word = $('stream-word');
   const translation = $('stream-translation');
   const toggle = $('stream-toggle');
@@ -59,6 +61,7 @@ export function createStream(root, ctx) {
     speakBox.checked = s.streamSpeak;
     audioBox.checked = s.streamAudio;
     repeatBox.checked = s.streamRepeat;
+    if (mnemonicBox) mnemonicBox.checked = s.streamMnemonic !== false;
     updateControls();
   }
 
@@ -137,15 +140,19 @@ export function createStream(root, ctx) {
   const wordHtml = (entry) => `<span class="speak">${escapeHtml(entry.word)}</span>`;
   const translationHtml = (entry) => escapeHtml(entry.translations.join(', '));
 
+  // Ответ, под ним ассоциация (если включена) — вместе с ответом, чтобы не подсказывать.
+  const answerHtml = (entry, reverse) =>
+    (reverse ? wordHtml(entry) : translationHtml(entry)) + (mnemonicBox?.checked ? mnemonicHtml(entry, 'span') : '');
+
   // Верхняя строка — то, что надо вспомнить, нижняя — ответ.
   function showWord(entry, reverse, withAnswer) {
     word.innerHTML = reverse ? translationHtml(entry) : wordHtml(entry);
     word.classList.toggle('reverse', reverse);
-    translation.innerHTML = withAnswer ? (reverse ? wordHtml(entry) : translationHtml(entry)) : '';
+    translation.innerHTML = withAnswer ? answerHtml(entry, reverse) : '';
   }
 
   function showAnswer(entry, reverse) {
-    translation.innerHTML = reverse ? wordHtml(entry) : translationHtml(entry);
+    translation.innerHTML = answerHtml(entry, reverse);
   }
 
   // Элемент, где сейчас слово, — для подсветки при произношении.
@@ -285,6 +292,7 @@ export function createStream(root, ctx) {
       streamSpeak: speakBox.checked,
       streamAudio: audioBox.checked,
       streamRepeat: repeatBox.checked,
+      streamMnemonic: mnemonicBox ? mnemonicBox.checked : true,
     });
   };
   speed.addEventListener('change', persist);
@@ -292,6 +300,7 @@ export function createStream(root, ctx) {
   directionMode.addEventListener('change', persist);
   speakBox.addEventListener('change', persist);
   repeatBox.addEventListener('change', persist);
+  mnemonicBox?.addEventListener('change', persist);
   audioBox.addEventListener('change', () => {
     persist();
     updateControls();
