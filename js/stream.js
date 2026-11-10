@@ -240,16 +240,25 @@ export function createStream(root, ctx) {
     }
   }
 
-  function start() {
-    list = shuffle(ctx.wordsFor(source.value));
+  // fresh — начать набор заново; иначе (после паузы или возврата на вкладку) — с того же места.
+  let listSource = null;
+  function start(fresh = false) {
+    if (fresh || !list.length || listSource !== source.value) {
+      list = shuffle(ctx.wordsFor(source.value));
+      listSource = source.value;
+      index = 0;
+      shown = 0;
+    } else if (index > 0) {
+      // Продолжение: слово, которое было на экране, показать ещё раз.
+      index -= 1;
+      shown = Math.max(0, shown - 1);
+    }
     if (!list.length) {
       counter.textContent = 'В этом наборе пока нет слов — выберите другой.';
       return;
     }
     running = true;
     run += 1;
-    index = 0;
-    shown = 0;
     toggle.textContent = 'Пауза';
     if (audioBox.checked) {
       const id = run;
@@ -284,11 +293,28 @@ export function createStream(root, ctx) {
   const restart = () => {
     if (running) {
       stop();
-      start();
-    }
+      start(true);
+    } else list = [];
   };
 
-  toggle.addEventListener('click', () => (running ? stop() : start()));
+  // Уход на другую вкладку — поток замирает; при возврате продолжается, если шёл.
+  let wasRunning = false;
+  function suspend() {
+    if (!running) return;
+    wasRunning = true;
+    stop();
+  }
+  function wake() {
+    if (!wasRunning) return;
+    wasRunning = false;
+    start();
+  }
+
+  toggle.addEventListener('click', () => {
+    wasRunning = false;
+    if (running) stop();
+    else start();
+  });
   source.addEventListener('change', restart);
   const persist = () => {
     ctx.saveSettings({
@@ -316,10 +342,14 @@ export function createStream(root, ctx) {
 
   return {
     stop,
+    suspend,
+    wake,
     syncControls,
     isRunning: () => running,
     reset: () => {
       stop();
+      wasRunning = false;
+      list = [];
       word.textContent = '';
       translation.textContent = '';
       counter.textContent = '';

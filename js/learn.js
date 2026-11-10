@@ -174,6 +174,7 @@ export function createSession(root, ctx) {
 
   function stop() {
     active = false;
+    suspendedAt = 0;
     clearTimeout(introState.timer);
     clearTimeout(advanceTimer);
     stopSpeech();
@@ -569,7 +570,8 @@ export function createSession(root, ctx) {
   });
 
   document.addEventListener('keydown', (event) => {
-    if (!active || root.hidden || event.target.closest?.('select, input, textarea')) return;
+    // Занятие могло остаться открытым на другой вкладке — клавиши его не трогают.
+    if (!active || root.closest('[hidden]') || event.target.closest?.('select, input, textarea')) return;
     if (!intro.hidden) {
       // Пробел на кнопке нажимает её сам — второй раз паузу не переключаем.
       if (event.key === ' ' && !event.target.closest?.('button')) {
@@ -602,5 +604,25 @@ export function createSession(root, ctx) {
     }
   });
 
-  return { start, resume, pending, restartToday, stop, isActive: () => active };
+  // Переход на другую вкладку: занятие не заканчивается, а замирает (таймеры и речь — стоп).
+  let suspendedAt = 0;
+  function suspend() {
+    if (!active || suspendedAt) return;
+    suspendedAt = Date.now();
+    clearTimeout(introState.timer);
+    clearTimeout(advanceTimer);
+    stopSpeech();
+    persist();
+  }
+
+  // Возврат на вкладку: знакомство — с того же слова (если не на паузе), карточка — как была.
+  function wake() {
+    if (!suspendedAt) return;
+    // Время на вкладке не считается временем ответа.
+    shownAt += Date.now() - suspendedAt;
+    suspendedAt = 0;
+    if (active && !intro.hidden && !introState.paused) introStep();
+  }
+
+  return { start, resume, pending, restartToday, stop, suspend, wake, isActive: () => active };
 }

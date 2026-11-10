@@ -56,8 +56,13 @@ const flash = createFlash($('flash-view'), { wordsFor, settings: () => state.set
 // --- Разделы -----------------------------------------------------------------
 
 function showView(name) {
-  if (name !== 'session') session.stop();
-  if (name !== 'stream') stream.stop();
+  // Открытое занятие при уходе на другую вкладку замирает, а при возврате на «Сегодня»
+  // продолжается с того же места; поток — так же.
+  if (name === 'today' && session.isActive()) name = 'session';
+  if (name === 'session') session.wake();
+  else session.suspend();
+  if (name === 'stream') stream.wake();
+  else stream.suspend();
   if (name !== 'flash') flash.stop();
   for (const view of VIEWS) $(`${view}-view`).hidden = view !== name;
   const tab = name === 'session' ? 'today' : name;
