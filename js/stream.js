@@ -48,6 +48,12 @@ export function createStream(root, ctx) {
   let shown = 0;
   let timers = [];
 
+  // Шкала «Время на слово»: 0,5–5 с с шагом 0,5; подпись рядом со шкалой.
+  const speedLabel = $('stream-speed-value');
+  function showSpeed() {
+    if (speedLabel) speedLabel.textContent = `${String(Number(speed.value)).replace('.', ',')} с`;
+  }
+
   const clearTimers = () => {
     timers.forEach(clearTimeout);
     timers = [];
@@ -56,6 +62,7 @@ export function createStream(root, ctx) {
   function syncControls() {
     const s = ctx.settings();
     speed.value = String(s.streamSeconds);
+    showSpeed();
     revealMode.value = s.streamReveal;
     directionMode.value = s.streamDirection ?? 'forward';
     speakBox.checked = s.streamSpeak;
@@ -296,6 +303,7 @@ export function createStream(root, ctx) {
     });
   };
   speed.addEventListener('change', persist);
+  speed.addEventListener('input', showSpeed);
   revealMode.addEventListener('change', persist);
   directionMode.addEventListener('change', persist);
   speakBox.addEventListener('change', persist);

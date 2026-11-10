@@ -110,14 +110,8 @@
         <label>Слова
           <select id="stream-source"></select>
         </label>
-        <label>Скорость
-          <select id="stream-speed">
-            <option value="0.7">0,7 с — очень быстро</option>
-            <option value="1">1 с</option>
-            <option value="1.5">1,5 с</option>
-            <option value="2">2 с</option>
-            <option value="3">3 с — медленно</option>
-          </select>
+        <label>Время на слово: <output id="stream-speed-value">1,5 с</output>
+          <input type="range" id="stream-speed" min="0.5" max="5" step="0.5" value="1.5">
         </label>
         <label>Направление
           <select id="stream-direction">
