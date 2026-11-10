@@ -282,8 +282,7 @@ export function createSession(root, ctx) {
     if (!current || answered || level >= 3 || !options[index]) return;
     const correct = wordId(options[index]) === wordId(current);
     choices.querySelectorAll('[data-choice]').forEach((button, j) => {
-      // Не disabled: нажатие на вариант после ответа ведёт дальше, а на выключенной кнопке
-      // браузер нажатие не передаёт.
+      // После ответа варианты неактивны (aria-disabled); дальше — только кнопкой «Дальше».
       button.setAttribute('aria-disabled', 'true');
       if (wordId(options[j]) === wordId(current)) button.classList.add('right');
       else if (j === index) button.classList.add('wrong');
@@ -354,9 +353,7 @@ export function createSession(root, ctx) {
     if (result.demoted) text += ` · Слово вернулось на уровень ${result.level}`;
     note.textContent = text;
     note.className = `answer-note ${correct ? 'ok' : 'no'}`;
-    // Написанное слово с подсказкой о написании — дольше, чтобы успеть прочитать.
-    const hinted = level === 3 && correctNow && text.includes('·');
-    autoAdvance(!correctNow ? 3000 : result.promoted || hinted ? 2200 : 1100);
+    autoAdvance();
   }
 
   // Прямой вопрос 1-го уровня отвечен: слово вернётся обратным вопросом через несколько карточек,
@@ -369,16 +366,15 @@ export function createSession(root, ctx) {
     current = entry;
     note.textContent = `${correctNow ? '✓ Верно' : '✗ Неверно — правильный выделен'} · Скоро обратный вопрос: перевод → слово`;
     note.className = `answer-note ${correctNow ? 'ok' : 'no'}`;
-    autoAdvance(correctNow ? 1100 : 3000);
+    autoAdvance();
   }
 
-  function autoAdvance(delay) {
+  // После ответа — только кнопка «Дальше» (или Enter): карточка сама не перелистывается,
+  // чтобы спокойно рассмотреть ответ, пример и ассоциацию.
+  function autoAdvance() {
     nextButton.hidden = false;
     // На телефоне кнопка может оказаться ниже края экрана — прокрутить к ней.
     nextButton.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
-    // Дальше само: после верного ответа через секунду, после ошибки — через 3 секунды,
-    // чтобы успеть рассмотреть правильный ответ. Раньше — «Дальше» или нажатие на карточку.
-    advanceTimer = setTimeout(() => { if (active && answered) next(); }, delay);
   }
 
   function reveal() {
@@ -530,10 +526,7 @@ export function createSession(root, ctx) {
     if (button) grade(Number(button.dataset.grade));
   });
   choices.addEventListener('click', (event) => {
-    if (answered && choiceMode()) {
-      next();
-      return;
-    }
+    if (answered && choiceMode()) return; // дальше — только кнопкой «Дальше»
     const button = event.target.closest('[data-choice]');
     if (button) choose(Number(button.dataset.choice));
   });
@@ -552,8 +545,7 @@ export function createSession(root, ctx) {
   // Нажатие на карточку тоже открывает ответ (но не на слово — оно озвучивается).
   $('card').addEventListener('click', (event) => {
     if (event.target.closest('.speak')) return;
-    if (answered && choiceMode()) next();
-    else reveal();
+    if (!(answered && choiceMode())) reveal();
   });
   introPause.addEventListener('click', toggleIntroPause);
   $('intro-skip').addEventListener('click', endIntro);
