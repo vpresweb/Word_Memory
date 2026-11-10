@@ -6,14 +6,18 @@ import { LEVELS, MAX_LEVEL, PROMOTE_AFTER, levelOf, streakOf, applyAnswer, grade
 import { wordId, dueWords, freshWords, pickNext, dayKey, endOfDay, markDay, packSession, unpackSession, sample } from './session.js';
 import { entryMeta, escapeHtml } from './data.js';
 import { speak, stopSpeech } from './speech.js';
+import { mnemonicHtml } from './mnemonics.js';
 
 function wordHtml(entry, className = 'word') {
   return `<span class="${className} speak" data-word title="Прослушать">${escapeHtml(entry.word)}</span>`;
 }
 
+// Пример к слову и ассоциация для запоминания — показываются вместе с ответом.
 function exampleHtml(entry) {
-  if (!entry.example) return '';
-  return `<span class="example"><span class="speak">${escapeHtml(entry.example.text)}</span> — ${escapeHtml(entry.example.ru)}</span>`;
+  const example = entry.example
+    ? `<span class="example"><span class="speak">${escapeHtml(entry.example.text)}</span> — ${escapeHtml(entry.example.ru)}</span>`
+    : '';
+  return example + mnemonicHtml(entry, 'span');
 }
 
 const translationText = (entry) => entry.translations.join(', ');

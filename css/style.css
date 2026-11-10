@@ -166,6 +166,8 @@ kbd { font: inherit; font-size: .8em; opacity: .7; margin-left: 6px; }
 .meta { color: var(--muted); font-style: italic; }
 .example { color: var(--muted); max-width: 520px; }
 .example .speak { color: var(--text); }
+/* Ассоциация-созвучие для запоминания слова */
+.mnemonic { display: block; margin: 6px 0 0; padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, #F5A623 14%, transparent); color: var(--text); font-size: .95rem; max-width: 520px; }
 .card-front { display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .card-back { display: flex; flex-direction: column; gap: 8px; align-items: center; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 6px; width: 100%; }
 .card-back[hidden] { display: none; }

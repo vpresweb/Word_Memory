@@ -1,3 +1,4 @@
+import { loadMnemonics, attachMnemonics } from './mnemonics.js';
 // Наборы слов. Файлы data/en.json и data/pt.json собираются скриптом scripts/build-data.mjs
 // из основной части словарей Dictionary_English и Dicionario_Portugues (порядок — по частоте).
 
@@ -34,7 +35,7 @@ export async function loadWords(lang) {
   if (cache.has(lang)) return cache.get(lang);
   const response = await fetch(LANGUAGES[lang].file);
   if (!response.ok) throw new Error(`Не удалось загрузить слова: ${response.status}`);
-  const words = await response.json();
+  const words = attachMnemonics(await response.json(), await loadMnemonics(lang));
   cache.set(lang, words);
   return words;
 }
