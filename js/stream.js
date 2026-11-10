@@ -72,10 +72,9 @@ export function createStream(root, ctx) {
     updateControls();
   }
 
-  // В аудиорежиме темп задаёт сама речь, а слово всегда произносится.
+  // В аудиорежиме слово всегда произносится, а шкала задаёт паузу после перевода.
   function updateControls() {
     const audio = audioBox.checked;
-    speed.disabled = audio;
     speakBox.disabled = audio;
     repeatBox.disabled = !audio;
     repeatBox.closest('label').hidden = !audio;
@@ -233,10 +232,10 @@ export function createStream(root, ctx) {
         // Озвучка не работает — поток всё равно идёт, но с паузой, чтобы слово успели прочитать.
         counter.textContent += ' · озвучка не отвечает';
         await wait(1500);
-      } else if (!document.hidden) {
-        // Короткая пауза между словами — только когда вкладка видна: в свёрнутой вкладке
-        // таймер мог бы растянуться до минуты, а паузы между фразами и так есть.
-        await wait(400);
+      } else {
+        // Время на осмысление после перевода — по шкале «Время на слово». Тишина идёт через
+        // <audio>, поэтому не растягивается и в свёрнутой вкладке.
+        await pause(Number(speed.value) * 1000);
       }
     }
   }
@@ -254,7 +253,7 @@ export function createStream(root, ctx) {
     toggle.textContent = 'Пауза';
     if (audioBox.checked) {
       const id = run;
-      if (revealDelay() > 0) unlockSilence();
+      unlockSilence(); // паузы аудиорежима — тишина через <audio>
       if (speechSupported() && (speechSynthesis.speaking || speechSynthesis.pending)) {
         // Остановить то, что звучало, и начать с паузой (иначе Chrome потеряет первую фразу).
         stopSpeech();
