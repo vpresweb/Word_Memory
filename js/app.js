@@ -13,6 +13,17 @@ const VIEWS = ['today', 'session', 'stream', 'flash', 'settings'];
 
 const state = { lang: 'en', words: [], progress: emptyProgress(), settings: loadSettings() };
 
+// В настройках — список готовых значений; время со шкалы знакомства (например, 3,5 с)
+// добавляется в список, чтобы поле не оказалось пустым.
+function syncSettingsIntro() {
+  const select = $('set-intro');
+  const value = String(state.settings.introSeconds);
+  if (![...select.options].some((o) => o.value === value)) {
+    select.add(new Option(`${value.replace('.', ',')} с на слово`, value));
+  }
+  select.value = value;
+}
+
 function updateSettings(patch) {
   Object.assign(state.settings, patch);
   saveSettings(state.settings);
@@ -24,6 +35,7 @@ const wordsFor = (kind) => wordsForSource(kind, state.words, state.progress, sta
 const session = createSession($('session-view'), {
   get: () => state,
   save,
+  saveSettings: (patch) => { updateSettings(patch); syncSettingsIntro(); },
   onExit: () => {
     location.hash = '';
     showView('today');
@@ -132,7 +144,7 @@ function renderSettings() {
   $('set-new').value = String(state.settings.newPerDay);
   $('set-check').value = state.settings.check;
   $('set-order').value = state.settings.cardOrder ?? 'random';
-  $('set-intro').value = String(state.settings.introSeconds);
+  syncSettingsIntro();
   $('set-autospeak').checked = state.settings.autospeak;
   $('backup-status').textContent = '';
 }

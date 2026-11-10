@@ -172,6 +172,7 @@ kbd { font: inherit; font-size: .8em; opacity: .7; margin-left: 6px; }
 .card-back { display: flex; flex-direction: column; gap: 8px; align-items: center; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 6px; width: 100%; }
 .card-back[hidden] { display: none; }
 
+.intro-speed { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 10px; }
 .intro-title { font-weight: 600; margin: 0 0 10px; }
 /* Обратный круг знакомства: слово появляется под переводом. Место занято заранее — карточка не прыгает. */
 .intro-answer { display: flex; flex-direction: column; gap: 8px; align-items: center; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 6px; width: 100%; }

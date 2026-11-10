@@ -48,6 +48,12 @@ export function createSession(root, ctx) {
   const introCard = $('intro-card');
   const introProgress = $('intro-progress');
   const introPause = $('intro-pause');
+  // Шкала «Время на слово» прямо в знакомстве: 1–10 с.
+  const introSpeed = $('intro-speed');
+  const introSpeedLabel = $('intro-speed-value');
+  const showIntroSpeed = () => {
+    introSpeedLabel.textContent = `${String(Number(introSpeed.value)).replace('.', ',')} с`;
+  };
   const reviewBox = $('review');
   const front = $('card-front');
   const back = $('card-back');
@@ -427,6 +433,8 @@ export function createSession(root, ctx) {
   function runIntro(list) {
     Object.assign(introState, { list, index: 0, round: 1, paused: false });
     introPause.textContent = 'Пауза';
+    introSpeed.value = String(ctx.get().settings.introSeconds);
+    showIntroSpeed();
     show('intro');
     left.textContent = `Новых слов: ${list.length}`;
     persist();
@@ -551,6 +559,9 @@ export function createSession(root, ctx) {
     if (!(answered && choiceMode())) reveal();
   });
   introPause.addEventListener('click', toggleIntroPause);
+  introSpeed.addEventListener('input', showIntroSpeed);
+  // Новое время действует со следующего слова; сохраняется в настройках («Знакомство с новыми словами»).
+  introSpeed.addEventListener('change', () => ctx.saveSettings?.({ introSeconds: Number(introSpeed.value) }));
   $('intro-skip').addEventListener('click', endIntro);
   $('session-exit').addEventListener('click', () => {
     stop();
