@@ -25,6 +25,10 @@ export const spokenTranslation = (entry) => entry.translations.slice(0, 2).join(
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// iPhone, iPad (в том числе iPad, который называет себя Mac).
+const isIOS = typeof navigator !== 'undefined'
+  && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+
 // ctx: { wordsFor(kind) → entries, lang() → 'en' | 'pt', settings(), saveSettings() }
 export function createStream(root, ctx) {
   const $ = (id) => root.querySelector(`#${id}`);
@@ -118,6 +122,12 @@ export function createStream(root, ctx) {
   }
   // Разблокировать плеер нажатием «Запустить» (иначе телефон не даст играть звук позже).
   function unlockSilence() {
+    // На iPhone/iPad проигрывание <audio> перехватывает звук у синтезатора речи — озвучка
+    // не начинается. Там паузы — обычным таймером.
+    if (isIOS) {
+      silencePlayer = null;
+      return;
+    }
     try {
       silencePlayer = silencePlayer || new Audio();
       silencePlayer.src = silenceUrl(100);
@@ -203,10 +213,17 @@ export function createStream(root, ctx) {
       showWord(entry, reverse, !after);
       if (silent >= 2) {
         // Два слова подряд не озвучились — дальше без звука, чтобы поток не тормозил.
-        if (after) timers.push(setTimeout(() => showAnswer(entry, reverse), Math.max(700, delay)));
+        // Ответ — строго после своего слова (раньше таймер ответа мог сработать уже на следующем
+        // слове и показать чужой перевод), затем пауза по шкале «Время на слово».
         count();
         counter.textContent += ' · озвучка не отвечает: нажмите «Пауза» и снова «Запустить»';
-        await wait(2000);
+        if (after) {
+          await pause(delay);
+          if (!alive()) return;
+          showAnswer(entry, reverse);
+        }
+        await pause(Math.max(1000, Number(speed.value) * 1000));
+        if (!alive()) return;
         continue;
       }
       const sayWord = () => speakAndWait(entry.word, lang);
