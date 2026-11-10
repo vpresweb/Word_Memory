@@ -496,7 +496,10 @@ export function createSession(root, ctx) {
     if (introState.paused) {
       clearTimeout(introState.timer);
       introState.reveal?.(); // на паузе слово видно сразу
-    } else introStep();
+    } else {
+      // Слово на паузе уже рассмотрели — продолжаем со следующего, а не показываем его снова.
+      introAdvance();
+    }
   }
 
   function finish() {
@@ -557,7 +560,8 @@ export function createSession(root, ctx) {
   document.addEventListener('keydown', (event) => {
     if (!active || root.hidden || event.target.closest?.('select, input, textarea')) return;
     if (!intro.hidden) {
-      if (event.key === ' ') {
+      // Пробел на кнопке нажимает её сам — второй раз паузу не переключаем.
+      if (event.key === ' ' && !event.target.closest?.('button')) {
         event.preventDefault();
         toggleIntroPause();
       }
