@@ -571,7 +571,12 @@ export function createSession(root, ctx) {
 
   document.addEventListener('keydown', (event) => {
     // Занятие могло остаться открытым на другой вкладке — клавиши его не трогают.
-    if (!active || root.closest('[hidden]') || event.target.closest?.('select, input, textarea')) return;
+    // Клавиши не перехватываются, только пока печатают в видимом поле: фокус мог остаться
+    // в скрытом поле (поиск словаря, своя ассоциация) или на шкале — тогда Enter и 1–4 работают.
+    const field = event.target.closest?.('select, input, textarea');
+    const typing = field && field.offsetParent !== null && !field.readOnly && !field.disabled
+      && !['range', 'checkbox', 'radio', 'button', 'submit'].includes(field.type);
+    if (!active || root.closest('[hidden]') || typing) return;
     if (!intro.hidden) {
       // Пробел на кнопке нажимает её сам — второй раз паузу не переключаем.
       if (event.key === ' ' && !event.target.closest?.('button')) {
