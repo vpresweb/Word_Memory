@@ -265,7 +265,7 @@ export function createSession(root, ctx) {
         .join('');
       choices.hidden = false;
       revealButton.hidden = true;
-      keysHint.textContent = 'Клавиши: 1–4 — вариант, Enter — дальше';
+      keysHint.textContent = 'Клавиши: 1–4 — вариант';
     } else {
       // 3-й уровень: слово пишется с клавиатуры.
       revealButton.hidden = true;
